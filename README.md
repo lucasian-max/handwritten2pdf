@@ -118,6 +118,26 @@ These can be set as environment variables (prefix `NOTES2LATEX_`) or in a `.env`
 
 ## Model Recommendations
 
+**Hack Club AI + DeepSeek v4.1 Flash** is this fork's default (`openai/deepseek/deepseek-v4.1-flash`
+via `https://ai.hackclub.com/proxy/v1`). A 16-run benchmark (8 vision-capable models ×
+2 handwritten test pages, scored on math fidelity against the known content, PDF
+compile success, and speed) ranked the Hack Club AI proxy's vision models:
+
+| Model | Fidelity | Compile | Speed |
+| --- | --- | --- | --- |
+| `google/gemini-3-flash-preview` | perfect | 2/2 | fastest (16–20 s/page) |
+| `deepseek/deepseek-v4.1-flash` | perfect | 2/2 | 24–36 s/page |
+| `deepseek/deepseek-v4-flash-vision-exp` | perfect | 2/2 | 40–52 s/page |
+| `z-ai/glm-5.3-flash` | perfect | 2/2 | 16–88 s/page |
+| `z-ai/glm-5.3-flashx` | 6/7 pages | 2/2 | ~60 s/page |
+| `openai/gpt-4o` | good | 2/2 | 12 s/page |
+| `z-ai/glm-4.6v` | good | 1/2 | slow (76–353 s/page) |
+| `qwen/qwen3-vl-235b-a22b-instruct` | good | 1/2 | 24–32 s/page |
+
+DeepSeek v4.1 Flash is the default over the faster Gemini preview for stability: a
+preview model can disappear from the proxy at any time. Note that `z-ai/glm-5.3`
+(non-flash) is text-only on the proxy and cannot accept page images.
+
 notes2latex works with any vision language model accessible through [LiteLLM](https://docs.litellm.ai/docs/providers). Some handle handwritten math better than others. Here's what has worked well so far in my limited testing; this is not exhaustive and the landscape moves fast.
 
 ### Proprietary models

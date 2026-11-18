@@ -16,18 +16,25 @@ export interface ProviderPreset {
  */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
-    id: "hackclub",
-    group: "Hack Club",
-    label: "Hack Club AI (GLM 5.3 Flash)",
-    model: "openai/z-ai/glm-5.3-flash",
+    id: "deepseek-v4.1-flash",
+    group: "DeepSeek",
+    label: "DeepSeek v4.1 Flash (best tested)",
+    model: "openai/deepseek/deepseek-v4.1-flash",
     apiBase: "https://ai.hackclub.com/proxy/v1",
   },
   {
     id: "gemini-3-flash",
     group: "Google",
-    label: "Gemini 3 Flash",
-    model: "openrouter/google/gemini-3-flash-preview",
-    apiBase: "https://openrouter.ai/api/v1",
+    label: "Gemini 3 Flash (fastest tested)",
+    model: "openai/google/gemini-3-flash-preview",
+    apiBase: "https://ai.hackclub.com/proxy/v1",
+  },
+  {
+    id: "hackclub",
+    group: "Hack Club",
+    label: "Hack Club AI (GLM 5.3 Flash)",
+    model: "openai/z-ai/glm-5.3-flash",
+    apiBase: "https://ai.hackclub.com/proxy/v1",
   },
   {
     id: "gemini-2-5-pro",
