@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,8 +17,16 @@ class Settings(BaseSettings):
 
     # LLM settings
     model: str = "openrouter/google/gemini-3-flash-preview"
+    api_base: str | None = None  # OpenAI-compatible endpoint override
+    api_key: str | None = None  # key for that endpoint
     temperature: float = 0.1
     max_tokens: int = 16384
+
+    # Conversion mode: faithful transcription, or student-facing material
+    mode: Literal["transcribe", "material"] = "transcribe"
+
+    # Best-effort page-image hosting
+    cdn_api_key: str | None = None
 
     # Pipeline settings
     max_retries: int = 3

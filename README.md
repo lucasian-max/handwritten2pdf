@@ -104,6 +104,10 @@ These can be set as environment variables (prefix `NOTES2LATEX_`) or in a `.env`
 | Variable | Default | Description |
 |---|---|---|
 | `NOTES2LATEX_MODEL` | `openrouter/google/gemini-3-flash-preview` | VLM to use ([supported providers](https://docs.litellm.ai/docs/providers)) |
+| `NOTES2LATEX_API_BASE` | — | OpenAI-compatible endpoint override (e.g. `https://ai.hackclub.com/proxy/v1`) |
+| `NOTES2LATEX_API_KEY` | — | Key for `NOTES2LATEX_API_BASE` |
+| `NOTES2LATEX_MODE` | `transcribe` | `transcribe` for a faithful transcription, `material` for student-facing material plus editorial notes |
+| `NOTES2LATEX_CDN_API_KEY` | — | Hack Club CDN key; uploads page images to `cdn_urls.json` (best effort) |
 | `NOTES2LATEX_TEMPERATURE` | `0.1` | Sampling temperature |
 | `NOTES2LATEX_MAX_TOKENS` | `16384` | Max tokens per VLM call |
 | `NOTES2LATEX_MAX_RETRIES` | `3` | Compilation fix attempts per page |

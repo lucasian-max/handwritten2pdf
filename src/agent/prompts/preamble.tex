@@ -3,7 +3,6 @@
 % --- Packages ---
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{mathtools}
-\usepackage{thmtools}
 \usepackage{cancel}
 \usepackage{mathrsfs}
 
@@ -36,5 +35,9 @@
 \theoremstyle{remark}
 \newtheorem{remark}[theorem]{Remark}
 \newtheorem{notation}[theorem]{Notation}
+
+% Loaded after the \newtheorem block: v0.76 mis-handles the
+% `\newtheorem{x}[parent]` form when it is loaded first (TeX Live 2026).
+\usepackage{thmtools}
 
 \begin{document}

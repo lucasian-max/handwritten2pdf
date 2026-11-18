@@ -1,5 +1,10 @@
 import { EVENT_TYPES } from "./types";
-import type { JobResponse, PagesResponse, ProgressEvent } from "./types";
+import type {
+  ConversionMode,
+  JobResponse,
+  PagesResponse,
+  ProgressEvent,
+} from "./types";
 
 const API_BASE = "/api/v1";
 
@@ -20,6 +25,8 @@ export async function createJob(
   config: {
     model?: string;
     api_key?: string;
+    api_base?: string | null;
+    mode?: ConversionMode;
     max_retries?: number;
     dpi?: number;
     preamble?: string;

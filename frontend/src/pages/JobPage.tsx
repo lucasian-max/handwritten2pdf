@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   Loader2,
@@ -21,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { modeLabel } from "@/lib/settings";
 import {
   subscribeToJob,
   getJob,
@@ -72,23 +80,29 @@ function ProcessingView({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <CardTitle className="flex items-center gap-2 font-display text-xl">
+          <Loader2 className="h-5 w-5 animate-spin text-ink" />
           Converting
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between gap-4 text-sm">
             <span className="text-muted-foreground">{statusText}</span>
             {totalPages > 0 && (
-              <span className="font-medium">{progressPercent}%</span>
+              <span className="font-mono text-xs">{progressPercent}%</span>
             )}
           </div>
           <Progress value={progressPercent} />
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SplitLabel({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="font-mono text-xs text-muted-foreground">{children}</h3>
   );
 }
 
@@ -134,11 +148,9 @@ function ReviewTab({ jobId }: { jobId: string }) {
 
   if (totalPages === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No page data available for review.
-        </CardContent>
-      </Card>
+      <p className="border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+        No page data available for review.
+      </p>
     );
   }
 
@@ -155,7 +167,7 @@ function ReviewTab({ jobId }: { jobId: string }) {
           <ChevronLeft className="h-4 w-4" />
           Previous
         </Button>
-        <span className="text-sm font-medium min-w-[120px] text-center">
+        <span className="min-w-[7.5rem] text-center font-mono text-xs text-muted-foreground">
           Page {currentPage} of {totalPages}
         </span>
         <Button
@@ -169,64 +181,64 @@ function ReviewTab({ jobId }: { jobId: string }) {
         </Button>
       </div>
 
-      {/* Side-by-side layout: stacks vertically on narrow screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Left: Original page image */}
-        <Card>
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Original (Page {currentPage})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2">
-            <div className="overflow-auto max-h-[70vh] rounded border bg-muted/30">
+      {/* The page and its typeset twin, split by the notebook margin rule */}
+      <div className="border border-border bg-card">
+        <div className="grid md:grid-cols-[1fr_2px_1fr]">
+          <div className="min-w-0">
+            <div className="border-b border-border px-4 py-2">
+              <SplitLabel>Original, page {currentPage}</SplitLabel>
+            </div>
+            <div className="max-h-[70vh] overflow-auto bg-muted/30 p-2">
               <img
                 src={pageImageUrl(jobId, currentPage)}
                 alt={`Original page ${currentPage}`}
-                className="w-full h-auto"
+                className="h-auto w-full"
               />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Right: Generated LaTeX for this page */}
-        <Card>
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Generated LaTeX (Page {currentPage})
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => pageLatex && copy(pageLatex)}
-              disabled={!pageLatex}
-            >
-              {copied ? (
-                <>
-                  <Check className="mr-1 h-3 w-3" />
-                  Copied
-                </>
+          <div
+            aria-hidden
+            className="h-[2px] w-full bg-margin md:h-auto md:w-[2px]"
+          />
+
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+              <SplitLabel>LaTeX, page {currentPage}</SplitLabel>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => pageLatex && copy(pageLatex)}
+                disabled={!pageLatex}
+              >
+                {copied ? (
+                  <>
+                    <Check className="mr-1 h-3 w-3" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-1 h-3 w-3" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="p-2">
+              {!pageLatex ? (
+                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </div>
               ) : (
-                <>
-                  <Copy className="mr-1 h-3 w-3" />
-                  Copy
-                </>
+                <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap bg-muted/40 p-4 font-mono text-xs leading-relaxed">
+                  {pageLatex}
+                </pre>
               )}
-            </Button>
-          </CardHeader>
-          <CardContent className="p-2">
-            {!pageLatex ? (
-              <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Loading...
-              </div>
-            ) : (
-              <pre className="text-xs bg-muted rounded-md p-4 overflow-auto max-h-[70vh] whitespace-pre-wrap font-mono">
-                {pageLatex}
-              </pre>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -326,17 +338,19 @@ function LatexSourceView({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {pageNumbers.length > 0 && (
             <>
-              <span className="text-xs text-muted-foreground mr-1">Pages:</span>
+              <span className="mr-1 font-mono text-xs text-muted-foreground">
+                Pages
+              </span>
               {pageNumbers.map((p) => (
                 <Button
                   key={p}
                   variant={filterPage === p ? "default" : "outline"}
                   size="sm"
-                  className="h-7 w-7 p-0 text-xs"
+                  className="h-7 w-7 p-0 font-mono text-xs"
                   onClick={() => scrollToPage(p)}
                   onDoubleClick={() => toggleFilter(p)}
                   title={`Click to scroll to page ${p}, double-click to filter`}
@@ -348,7 +362,7 @@ function LatexSourceView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs ml-1"
+                  className="ml-1 h-7 px-2 text-xs"
                   onClick={() => setFilterPage(null)}
                 >
                   <FilterX className="h-3 w-3 mr-1" />
@@ -361,7 +375,7 @@ function LatexSourceView({
         <div className="flex items-center gap-2">
           {filterPage !== null && (
             <Badge variant="secondary" className="text-xs">
-              <Filter className="h-3 w-3 mr-1" />
+              <Filter className="mr-1 h-3 w-3" />
               Page {filterPage} only
             </Badge>
           )}
@@ -388,7 +402,7 @@ function LatexSourceView({
 
       <pre
         ref={preRef}
-        className="text-xs bg-muted rounded-md p-4 overflow-auto max-h-[60vh] whitespace-pre-wrap"
+        className="max-h-[60vh] overflow-auto whitespace-pre-wrap bg-muted/40 p-4 font-mono text-xs leading-relaxed"
       >
         {displayedSegments.map((segment, idx) => {
           const newlinePos = segment.content.indexOf("\n");
@@ -405,7 +419,7 @@ function LatexSourceView({
                 <>
                   <span
                     data-page={segment.page_number}
-                    className="block bg-primary/10 text-primary font-semibold border-l-2 border-primary pl-2 -ml-2 my-2 py-0.5"
+                    className="my-2 -ml-2 block border-l-2 border-ink bg-ink/5 py-0.5 pl-2 font-medium text-ink"
                   >
                     {markerLine}
                   </span>
@@ -423,6 +437,39 @@ function LatexSourceView({
   );
 }
 
+function CdnLinks({ urls }: { urls?: Record<string, string> | null }) {
+  const entries = useMemo(
+    () =>
+      Object.entries(urls ?? {}).sort(
+        ([a], [b]) => Number(a) - Number(b),
+      ),
+    [urls],
+  );
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div>
+      <p className="font-mono text-xs text-muted-foreground">
+        Originals on Hack Club CDN
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+        {entries.map(([page, url]) => (
+          <a
+            key={page}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-ink underline decoration-rule underline-offset-4 hover:decoration-ink"
+          >
+            Page {page}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ResultView({ job }: { job: JobResponse }) {
   const [texSource, setTexSource] = useState<string | null>(null);
   const [texLoading, setTexLoading] = useState(false);
@@ -436,31 +483,58 @@ function ResultView({ job }: { job: JobResponse }) {
       .finally(() => setTexLoading(false));
   }, [job.job_id, job.has_tex, texSource, texLoading]);
 
+  const meta = [
+    job.input_filenames.join(", "),
+    job.total_pages > 0
+      ? `${job.total_pages} page${job.total_pages !== 1 ? "s" : ""}`
+      : null,
+    job.mode ? modeLabel(job.mode).toLowerCase() : null,
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
-      {/* PDF preview */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="margin-rule font-display text-3xl tracking-[-0.01em]">
+            Review
+          </h1>
+          <p className="mt-2 max-w-xl font-mono text-xs text-muted-foreground">
+            {meta.join(", ")}
+          </p>
+        </div>
+        <CdnLinks urls={job.cdn_urls} />
+      </header>
+
       {job.has_pdf && (
-        <Card>
-          <CardContent className="p-0">
-            <iframe
-              src={downloadUrl(job.job_id, "output.pdf")}
-              className="w-full rounded-lg"
-              style={{ height: "70vh" }}
-              title="PDF Preview"
-            />
-          </CardContent>
-        </Card>
+        <div className="border border-border bg-card">
+          <iframe
+            src={downloadUrl(job.job_id, "output.pdf")}
+            className="w-full"
+            style={{ height: "70vh" }}
+            title="PDF preview"
+          />
+        </div>
       )}
 
       {!job.has_pdf && job.has_tex && (
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-sm text-yellow-600">
-              PDF compilation failed, but the .tex source was saved. You can
-              download it and compile manually.
-            </p>
-          </CardContent>
-        </Card>
+        <p className="flex items-start gap-2 border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          The PDF did not compile, but the .tex source was saved. Download it
+          and compile it locally.
+        </p>
+      )}
+
+      {job.editorial_notes && (
+        <section className="border border-border bg-card">
+          <div className="border-b border-border px-5 py-3">
+            <h2 className="margin-rule font-display text-lg">
+              Editorial notes
+            </h2>
+          </div>
+          <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap px-5 py-4 font-sans text-sm leading-relaxed text-graphite">
+            {job.editorial_notes}
+          </pre>
+        </section>
       )}
 
       {/* Tabs: Review / Downloads / LaTeX Source */}
@@ -470,11 +544,17 @@ function ResultView({ job }: { job: JobResponse }) {
           if (v === "source") loadTex();
         }}
       >
-        <TabsList>
-          <TabsTrigger value="review">Review</TabsTrigger>
-          <TabsTrigger value="downloads">Downloads</TabsTrigger>
+        <TabsList variant="line">
+          <TabsTrigger value="review" className="after:bg-ink">
+            Review
+          </TabsTrigger>
+          <TabsTrigger value="downloads" className="after:bg-ink">
+            Downloads
+          </TabsTrigger>
           {job.has_tex && (
-            <TabsTrigger value="source">LaTeX Source</TabsTrigger>
+            <TabsTrigger value="source" className="after:bg-ink">
+              LaTeX source
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -483,64 +563,52 @@ function ResultView({ job }: { job: JobResponse }) {
         </TabsContent>
 
         <TabsContent value="downloads">
-          <Card>
-            <CardContent className="py-4">
-              <div className="grid gap-3">
-                {job.has_pdf && (
-                  <a href={downloadUrl(job.job_id, "output.pdf", true)}>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                    >
-                      <File className="h-4 w-4" />
-                      Download PDF
-                      <Download className="h-4 w-4 ml-auto" />
-                    </Button>
-                  </a>
-                )}
-                {job.has_tex && (
-                  <a href={downloadUrl(job.job_id, "output.tex", true)}>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                    >
-                      <FileText className="h-4 w-4" />
-                      Download .tex Source
-                      <Download className="h-4 w-4 ml-auto" />
-                    </Button>
-                  </a>
-                )}
-                <a href={downloadUrl(job.job_id, "all.zip", true)}>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                  >
-                    <Archive className="h-4 w-4" />
-                    Download All (.zip)
-                    <Download className="h-4 w-4 ml-auto" />
-                  </Button>
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid gap-3 border border-border bg-card p-4">
+            {job.has_pdf && (
+              <a href={downloadUrl(job.job_id, "output.pdf", true)}>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                >
+                  <File className="h-4 w-4" />
+                  Download PDF
+                  <Download className="ml-auto h-4 w-4" />
+                </Button>
+              </a>
+            )}
+            {job.has_tex && (
+              <a href={downloadUrl(job.job_id, "output.tex", true)}>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Download .tex source
+                  <Download className="ml-auto h-4 w-4" />
+                </Button>
+              </a>
+            )}
+            <a href={downloadUrl(job.job_id, "all.zip", true)}>
+              <Button variant="outline" className="w-full justify-start gap-2">
+                <Archive className="h-4 w-4" />
+                Download all (.zip)
+                <Download className="ml-auto h-4 w-4" />
+              </Button>
+            </a>
+          </div>
         </TabsContent>
 
         {job.has_tex && (
           <TabsContent value="source">
-            <Card>
-              <CardContent className="py-4">
-                <LatexSourceView
-                  texSource={texSource}
-                  texLoading={texLoading}
-                />
-              </CardContent>
-            </Card>
+            <div className="border border-border bg-card p-4">
+              <LatexSourceView texSource={texSource} texLoading={texLoading} />
+            </div>
           </TabsContent>
         )}
       </Tabs>
 
-      <Button asChild className="w-full">
-        <Link to="/">Convert Another</Link>
+      <Button asChild variant="outline" className="w-full">
+        <Link to="/">Add another page</Link>
       </Button>
     </div>
   );
@@ -548,20 +616,20 @@ function ResultView({ job }: { job: JobResponse }) {
 
 function FailedView({ errorMessage }: { errorMessage: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-destructive">
+    <div className="border border-margin/30 bg-card">
+      <div className="border-b border-border px-5 py-4">
+        <h1 className="flex items-center gap-2 font-display text-xl text-margin">
           <AlertCircle className="h-5 w-5" />
-          Conversion Failed
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+          Conversion failed
+        </h1>
+      </div>
+      <div className="space-y-4 px-5 py-4">
         <p className="text-sm text-muted-foreground">{errorMessage}</p>
         <Button asChild>
-          <Link to="/">Try Again</Link>
+          <Link to="/">Try again</Link>
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -644,26 +712,33 @@ export function JobPage() {
 
   if (status === "loading") {
     return (
-      <div className="container mx-auto max-w-4xl py-8 px-4 text-center text-muted-foreground">
-        Loading...
-      </div>
+      <main className="mx-auto max-w-4xl px-4 py-12 text-center font-mono text-xs text-muted-foreground">
+        Loading…
+      </main>
     );
   }
 
   return (
-    <div
-      className={`container mx-auto py-8 px-4 ${status === "completed" ? "max-w-7xl" : "max-w-4xl"}`}
-    >
-      <Button variant="ghost" size="sm" className="mb-6 -ml-2" asChild>
+    <main className="mx-auto max-w-4xl px-4 pb-20 pt-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 text-muted-foreground"
+        asChild
+      >
         <Link to="/">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Link>
       </Button>
 
-      {status === "processing" && <ProcessingView latestEvent={latestEvent} />}
-      {status === "completed" && job && <ResultView job={job} />}
-      {status === "failed" && <FailedView errorMessage={errorMessage} />}
-    </div>
+      <div className="mt-4">
+        {status === "processing" && (
+          <ProcessingView latestEvent={latestEvent} />
+        )}
+        {status === "completed" && job && <ResultView job={job} />}
+        {status === "failed" && <FailedView errorMessage={errorMessage} />}
+      </div>
+    </main>
   );
 }

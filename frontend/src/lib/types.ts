@@ -1,5 +1,7 @@
 export type JobStatus = "pending" | "processing" | "completed" | "failed";
 
+export type ConversionMode = "transcribe" | "material";
+
 export const EVENT_TYPES = [
   "job_started",
   "page_generating",
@@ -44,4 +46,7 @@ export interface JobResponse {
   input_filenames: string[];
   has_pdf: boolean;
   has_tex: boolean;
+  mode?: ConversionMode;
+  cdn_urls?: Record<string, string> | null;
+  editorial_notes?: string | null;
 }

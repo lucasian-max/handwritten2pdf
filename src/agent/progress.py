@@ -13,6 +13,8 @@ class EventType(str, Enum):
     PAGE_COMPILED_OK = "page_compiled_ok"
     PAGE_FIX_ATTEMPT = "page_fix_attempt"
     PAGE_DONE = "page_done"
+    CDN_UPLOADED = "cdn_uploaded"
+    CDN_UPLOAD_FAILED = "cdn_upload_failed"
     FINALIZING = "finalizing"
     JOB_COMPLETED = "job_completed"
     JOB_FAILED = "job_failed"

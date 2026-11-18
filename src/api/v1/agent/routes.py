@@ -105,18 +105,23 @@ async def create_job(
         raise HTTPException(status_code=400, detail="No files uploaded")
 
     repo = JobRepository(session)
-    job = await repo.create(job_id=job_id, model=req.model, filenames=filenames)
-
-    # Build resolved config for this job
     settings = get_settings()
     agent_config = AgentConfig.from_settings(
         settings,
         model=req.model,
+        api_base=req.api_base,
         api_key=req.api_key,
+        mode=req.mode,
         max_retries=req.max_retries,
         dpi=req.dpi,
         preamble=req.preamble,
         output_dir=output_dir,
+    )
+    job = await repo.create(
+        job_id=job_id,
+        model=req.model,
+        filenames=filenames,
+        mode=agent_config.mode,
     )
 
     # Create event store
@@ -130,6 +135,7 @@ async def create_job(
         job_id=job.id,
         status=job.status,
         model=job.model,
+        mode=job.mode,
         created_at=job.created_at,
         input_filenames=filenames,
     )
@@ -180,12 +186,24 @@ async def _handle_db_event(job_id: str, event: ProgressEvent, output_dir: Path) 
             await JobRepository(session).mark_failed(job_id, event.message)
 
 
-def _build_job_response(job) -> JobResponse:
+def _build_job_response(job, include_artifacts: bool = False) -> JobResponse:
     """Convert a DB Job row into an API response."""
+    cdn_urls: dict[str, str] = {}
+    editorial_notes: str | None = None
+    if include_artifacts:
+        output_dir = _get_job_dir(job.id) / "output"
+        cdn_path = output_dir / "cdn_urls.json"
+        if cdn_path.exists():
+            cdn_urls = json.loads(cdn_path.read_text(encoding="utf-8"))
+        notes_path = output_dir / "editorial-notes.md"
+        if notes_path.exists():
+            editorial_notes = notes_path.read_text(encoding="utf-8")
+
     return JobResponse(
         job_id=job.id,
         status=job.status,
         model=job.model,
+        mode=job.mode,
         total_pages=job.total_pages,
         created_at=job.created_at,
         completed_at=job.completed_at,
@@ -193,6 +211,8 @@ def _build_job_response(job) -> JobResponse:
         input_filenames=json.loads(job.input_filenames),
         has_pdf=job.has_pdf,
         has_tex=job.has_tex,
+        cdn_urls=cdn_urls,
+        editorial_notes=editorial_notes,
     )
 
 
@@ -217,7 +237,7 @@ async def get_job(
     job = await repo.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    return _build_job_response(job)
+    return _build_job_response(job, include_artifacts=True)
 
 
 @router.get("/{job_id}/pages", response_model=PagesResponse)

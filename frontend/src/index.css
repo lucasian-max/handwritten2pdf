@@ -4,10 +4,47 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Latin Modern, the face LaTeX itself sets. Vendored from Latin Modern 2.004
+   (GUST Font License, see public/fonts/LICENSE-LatinModern.txt). */
+@font-face {
+  font-family: "Latin Modern";
+  src: url("/fonts/TypoPRO-LatinModernRoman-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Latin Modern";
+  src: url("/fonts/TypoPRO-LatinModernRoman-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Latin Modern";
+  src: url("/fonts/TypoPRO-LatinModernRoman-Italic.woff") format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Latin Modern", "CMU Serif", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink-navy);
+  --color-graphite: var(--graphite);
+  --color-margin: var(--margin-red);
+  --color-rule: var(--rule-blue);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
@@ -46,79 +83,159 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --paper: #fcfcfa;
+  --ink-navy: #16357a;
+  --graphite: #2b2f36;
+  --margin-red: #c8473c;
+  --rule-blue: #cfe0f0;
+  --paper-raised: #ffffff;
+  --ink-wash: #eaf0f8;
+  --border-quiet: #dde3e9;
+  --muted-ink: #5b6470;
+
+  --radius: 0.25rem;
+
+  --background: var(--paper);
+  --foreground: var(--graphite);
+  --card: var(--paper-raised);
+  --card-foreground: var(--graphite);
+  --popover: var(--paper-raised);
+  --popover-foreground: var(--graphite);
+  --primary: var(--ink-navy);
+  --primary-foreground: #fbfcfe;
+  --secondary: #eef2f6;
+  --secondary-foreground: var(--ink-navy);
+  --muted: #f0f2f4;
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--ink-wash);
+  --accent-foreground: var(--ink-navy);
+  --destructive: var(--margin-red);
+  --destructive-foreground: #fffdfc;
+  --border: var(--border-quiet);
+  --input: #ccd5de;
+  --ring: var(--ink-navy);
+  --chart-1: var(--ink-navy);
+  --chart-2: var(--margin-red);
+  --chart-3: #6b8cc4;
+  --chart-4: #9fb8d8;
+  --chart-5: var(--graphite);
+  --sidebar: var(--paper-raised);
+  --sidebar-foreground: var(--graphite);
+  --sidebar-primary: var(--ink-navy);
+  --sidebar-primary-foreground: #fbfcfe;
+  --sidebar-accent: var(--ink-wash);
+  --sidebar-accent-foreground: var(--ink-navy);
+  --sidebar-border: var(--border-quiet);
+  --sidebar-ring: var(--ink-navy);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --paper: #12161b;
+  --ink-navy: #a7bdec;
+  --graphite: #e7e5df;
+  --margin-red: #e07a6f;
+  --rule-blue: #2b3a4d;
+  --paper-raised: #182028;
+  --ink-wash: #1f2c3d;
+  --border-quiet: #2a333d;
+  --muted-ink: #9aa3ad;
+
+  --background: var(--paper);
+  --foreground: var(--graphite);
+  --card: var(--paper-raised);
+  --card-foreground: var(--graphite);
+  --popover: var(--paper-raised);
+  --popover-foreground: var(--graphite);
+  --primary: var(--ink-navy);
+  --primary-foreground: #101720;
+  --secondary: #222b34;
+  --secondary-foreground: var(--graphite);
+  --muted: #1e262e;
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--ink-wash);
+  --accent-foreground: var(--ink-navy);
+  --destructive: var(--margin-red);
+  --destructive-foreground: #101720;
+  --border: var(--border-quiet);
+  --input: #3a4551;
+  --ring: var(--ink-navy);
+  --chart-1: var(--ink-navy);
+  --chart-2: var(--margin-red);
+  --chart-3: #7f9ed0;
+  --chart-4: #4f6f9c;
+  --chart-5: #c9c7c1;
+  --sidebar: var(--paper-raised);
+  --sidebar-foreground: var(--graphite);
+  --sidebar-primary: var(--ink-navy);
+  --sidebar-primary-foreground: #101720;
+  --sidebar-accent: var(--ink-wash);
+  --sidebar-accent-foreground: var(--ink-navy);
+  --sidebar-border: var(--border-quiet);
+  --sidebar-ring: var(--ink-navy);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--ink-navy) 18%, transparent);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  /* The notebook margin rule. It only ever means "the original handwriting
+     side" of a page, heading, or split review. */
+  .margin-rule {
+    border-left: 2px solid var(--margin-red);
+    padding-left: 0.75rem;
+  }
+
+  /* Ruled paper, kept to the upload drop zone. */
+  .ruled-paper {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(2rem - 1px),
+      var(--rule-blue) calc(2rem - 1px),
+      var(--rule-blue) 2rem
+    );
+  }
+
+  .hero-enter {
+    animation: hero-in 480ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+}
+
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

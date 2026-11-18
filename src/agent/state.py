@@ -11,6 +11,11 @@ def _use_latest(a, b):
     return b
 
 
+def _merge_notes(a: dict[int, str], b: dict[int, str]) -> dict[int, str]:
+    """Reducer that merges per-page editorial notes, later pages winning."""
+    return {**a, **(b or {})}
+
+
 class PipelineState(TypedDict, total=False):
     pages: list[str]
     config_dict: Annotated[dict, _use_latest]  # serialized AgentConfig scalars
@@ -22,6 +27,8 @@ class PipelineState(TypedDict, total=False):
     current_page_latex: Annotated[str, _use_latest]
     compiler_success: Annotated[bool, _use_latest]
     errors: Annotated[list[dict], _use_latest]
+    # Editorial notes keyed by 1-based page number; never compiled into the PDF
+    editorial_notes: Annotated[dict[int, str], _merge_notes]
     output_tex_path: Annotated[str, _use_latest]
     output_pdf_path: Annotated[str, _use_latest]
 

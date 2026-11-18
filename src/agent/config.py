@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from jinja2 import BaseLoader, Environment
 
@@ -17,11 +17,13 @@ _jinja_env = Environment(loader=BaseLoader())
 _SERIALIZABLE_FIELDS = frozenset(
     {
         "model",
+        "api_base",
         "temperature",
         "max_tokens",
         "max_retries",
         "context_lines",
         "api_key",
+        "mode",
         "dpi",
         "latex_engine",
         "compile_timeout",
@@ -45,8 +47,12 @@ class AgentConfig:
 
     # LLM settings
     model: str = "openrouter/google/gemini-3-flash-preview"
+    api_base: str | None = None
     temperature: float = 0.1
     max_tokens: int = 16384
+
+    # Conversion mode
+    mode: Literal["transcribe", "material"] = "transcribe"
 
     # Pipeline settings
     max_retries: int = 3
@@ -54,6 +60,7 @@ class AgentConfig:
 
     # Runtime
     api_key: str | None = None
+    cdn_api_key: str | None = None
 
     # Output / preprocessing
     output_dir: Path = Path("./output")
@@ -68,6 +75,7 @@ class AgentConfig:
 
     # Prompt templates (raw Jinja2 strings, overridable)
     transcribe_template: str = field(default_factory=lambda: _load_prompt("transcribe"))
+    material_template: str = field(default_factory=lambda: _load_prompt("transcribe-material"))
     fix_errors_template: str = field(default_factory=lambda: _load_prompt("fix_errors"))
 
     # Metadata
@@ -87,10 +95,14 @@ class AgentConfig:
         """Build AgentConfig from app Settings with optional per-request overrides."""
         base = {
             "model": settings.model,
+            "api_base": settings.api_base,
             "temperature": settings.temperature,
             "max_tokens": settings.max_tokens,
             "max_retries": settings.max_retries,
             "context_lines": settings.context_lines,
+            "api_key": settings.api_key,
+            "mode": settings.mode,
+            "cdn_api_key": settings.cdn_api_key,
             "output_dir": settings.output_dir,
             "dpi": settings.dpi,
             "latex_engine": settings.latex_engine,
@@ -102,6 +114,11 @@ class AgentConfig:
     def render_transcribe_prompt(self, page_number: int, open_envs: list[str]) -> str:
         """Render the transcription system prompt from stored template."""
         template = _jinja_env.from_string(self.transcribe_template)
+        return template.render(page_number=page_number, open_envs=open_envs)
+
+    def render_material_prompt(self, page_number: int, open_envs: list[str]) -> str:
+        """Render the material-mode system prompt from stored template."""
+        template = _jinja_env.from_string(self.material_template)
         return template.render(page_number=page_number, open_envs=open_envs)
 
     def render_fix_errors_prompt(self) -> str:

@@ -1,16 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -20,43 +13,66 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { loadSettings, saveSettings, type AppSettings } from "@/lib/settings";
+import {
+  PROVIDER_PRESETS,
+  loadSettings,
+  saveSettings,
+  presetForModel,
+  type AppSettings,
+  type ProviderPreset,
+} from "@/lib/settings";
 import { fetchDefaultPreamble } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type { ConversionMode } from "@/lib/types";
 
-const MODELS = [
+const PRESET_GROUPS = PROVIDER_PRESETS.reduce<
+  { group: string; presets: ProviderPreset[] }[]
+>((groups, preset) => {
+  const last = groups[groups.length - 1];
+  if (last?.group === preset.group) last.presets.push(preset);
+  else groups.push({ group: preset.group, presets: [preset] });
+  return groups;
+}, []);
+
+const MODE_OPTIONS: {
+  value: ConversionMode;
+  label: string;
+  description: string;
+}[] = [
   {
-    group: "Google",
-    items: [
-      {
-        value: "openrouter/google/gemini-3-flash-preview",
-        label: "Gemini 3 Flash",
-      },
-      {
-        value: "openrouter/google/gemini-2.5-pro-preview",
-        label: "Gemini 2.5 Pro",
-      },
-    ],
+    value: "transcribe",
+    label: "Faithful transcription",
+    description:
+      "Keeps exactly what is on the page. Good when your notes are already complete.",
   },
   {
-    group: "Anthropic",
-    items: [
-      { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-      {
-        value: "anthropic/claude-haiku-4-5-20251001",
-        label: "Claude Haiku 4.5",
-      },
-    ],
-  },
-  {
-    group: "OpenAI",
-    items: [
-      { value: "openai/gpt-4o", label: "GPT-4o" },
-      { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini" },
-    ],
+    value: "material",
+    label: "Student notes (fills in explanations)",
+    description:
+      "Keeps your notes and adds short explanations where a step was skipped.",
   },
 ];
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-border pt-6 first:border-t-0 first:pt-0">
+      <h2 className="margin-rule font-display text-lg">{title}</h2>
+      {description && (
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+      )}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -89,145 +105,238 @@ export function SettingsPage() {
     setSaved(true);
   };
 
+  const preset = presetForModel(settings.model);
+  const providerValue =
+    settings.useCustomModel || !preset ? "custom" : preset.id;
+
+  const chooseProvider = (value: string) => {
+    if (value === "custom") {
+      update({ useCustomModel: true });
+      return;
+    }
+    const next = PROVIDER_PRESETS.find((p) => p.id === value);
+    if (!next) return;
+    update({
+      useCustomModel: false,
+      model: next.model,
+      apiBase: next.apiBase,
+    });
+  };
+
   return (
-    <div className="container mx-auto max-w-2xl py-8 px-4">
+    <main className="mx-auto max-w-2xl px-4 pb-20">
       <Button
         variant="ghost"
         size="sm"
-        className="mb-6 -ml-2"
+        className="mt-6 -ml-2 text-muted-foreground"
         onClick={() => navigate("/")}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
       </Button>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Settings</CardTitle>
-          <CardDescription>
-            Configure your model and API key. These are saved locally in your
-            browser and used for all future conversions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Model selector */}
+      <div className="mt-4">
+        <h1 className="font-display text-3xl tracking-[-0.01em]">
+          Settings
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Model, provider, and conversion mode. These are saved in this browser
+          and used for every conversion.
+        </p>
+      </div>
+
+      <div className="mt-8 space-y-6 border border-border bg-card px-5 py-6 sm:px-6">
+        <Section
+          title="Provider"
+          description="Hack Club AI is the default. Any OpenAI-compatible endpoint works."
+        >
           <div className="space-y-2">
-            <Label>Model</Label>
-            {!settings.useCustomModel ? (
-              <Select
-                value={settings.model}
-                onValueChange={(v) => update({ model: v })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODELS.map((group) => (
-                    <SelectGroup key={group.group}>
-                      <SelectLabel>{group.group}</SelectLabel>
-                      {group.items.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
+            <Label htmlFor="provider">Provider and model</Label>
+            <Select value={providerValue} onValueChange={chooseProvider}>
+              <SelectTrigger id="provider" className="w-full">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRESET_GROUPS.map(({ group, presets }) => (
+                  <SelectGroup key={group}>
+                    <SelectLabel>{group}</SelectLabel>
+                    {presets.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+                <SelectGroup>
+                  <SelectLabel>Custom</SelectLabel>
+                  <SelectItem value="custom">Custom model string</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {!settings.useCustomModel && preset && (
+              <p className="font-mono text-xs text-muted-foreground">
+                {preset.model}
+              </p>
+            )}
+          </div>
+
+          {settings.useCustomModel && (
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="custom-model">Model string</Label>
               <Input
-                placeholder="e.g. openrouter/meta-llama/llama-4-scout"
+                id="custom-model"
+                className="font-mono text-sm"
+                placeholder="openai/your-model-id"
+                spellCheck={false}
+                autoComplete="off"
                 value={settings.customModel}
                 onChange={(e) => update({ customModel: e.target.value })}
               />
-            )}
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground underline"
-              onClick={() =>
-                update({ useCustomModel: !settings.useCustomModel })
-              }
-            >
-              {settings.useCustomModel
-                ? "Use preset models"
-                : "Enter custom model string"}
-            </button>
-          </div>
+              <p className="text-xs text-muted-foreground">
+                Use the provider-prefixed form your server expects, such as{" "}
+                <code className="font-mono">openrouter/google/gemini-3-flash-preview</code>
+                .
+              </p>
+            </div>
+          )}
 
-          <Separator />
-
-          {/* API Key */}
-          <div className="space-y-2">
-            <Label>API Key</Label>
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="api-base">Base URL</Label>
             <Input
+              id="api-base"
+              type="url"
+              inputMode="url"
+              className="font-mono text-sm"
+              placeholder={preset?.apiBase ?? "https://example.com/v1"}
+              spellCheck={false}
+              autoComplete="off"
+              value={settings.apiBase}
+              onChange={(e) => update({ apiBase: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              The OpenAI-compatible endpoint the server calls. Leave it blank to
+              use the server's own default.
+            </p>
+          </div>
+        </Section>
+
+        <Section
+          title="API key"
+          description="Stored only in this browser and sent with each request."
+        >
+          <div className="space-y-2">
+            <Label htmlFor="api-key">Key</Label>
+            <Input
+              id="api-key"
               type="password"
+              className="font-mono text-sm"
               placeholder="sk-..."
+              autoComplete="off"
               value={settings.apiKey}
               onChange={(e) => update({ apiKey: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
-              Your key is stored only in this browser and sent directly to the
-              provider. Leave blank to use server defaults.
+              Leave it blank to use the key your server is configured with. Keys
+              for Hack Club AI come from{" "}
+              <a
+                href="https://ai.hackclub.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-border underline-offset-4 hover:text-ink hover:decoration-ink"
+              >
+                ai.hackclub.com
+              </a>
+              .
             </p>
           </div>
+        </Section>
 
-          <Separator />
+        <Section
+          title="Conversion mode"
+          description="What the model should do with each page."
+        >
+          <fieldset>
+            <legend className="sr-only">Conversion mode</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {MODE_OPTIONS.map((option) => {
+                const active = settings.mode === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "cursor-pointer border px-3 py-3 transition-colors",
+                      active
+                        ? "border-ink bg-ink/[0.04]"
+                        : "border-border hover:border-ink/40",
+                      "has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="conversion-mode"
+                      value={option.value}
+                      checked={active}
+                      onChange={() => update({ mode: option.value })}
+                      className="sr-only"
+                    />
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        </Section>
 
-          {/* Preamble editor */}
+        <Section
+          title="LaTeX preamble"
+          description="Applies to every conversion. Add your own packages, commands, and theorem styles."
+        >
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>LaTeX Preamble</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="preamble">Preamble</Label>
               {defaultPreamble && settings.preamble !== defaultPreamble && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => {
-                    update({ preamble: defaultPreamble });
-                  }}
+                  onClick={() => update({ preamble: defaultPreamble })}
                 >
                   <RotateCcw className="mr-1 h-3 w-3" />
-                  Reset to Default
+                  Reset to default
                 </Button>
               )}
             </div>
             <Textarea
-              className="font-mono text-xs leading-relaxed min-h-[320px] resize-y"
+              id="preamble"
+              className="min-h-[320px] resize-y font-mono text-xs leading-relaxed"
               value={settings.preamble}
               onChange={(e) => update({ preamble: e.target.value })}
               spellCheck={false}
             />
-            <p className="text-xs text-muted-foreground">
-              Customize the LaTeX preamble used for all conversions. Add your
-              own <code>\newcommand</code> definitions, packages, and theorem
-              styles.
-            </p>
           </div>
+        </Section>
 
-          <Separator />
-
-          {/* Docs link */}
-          <div className="text-sm text-muted-foreground">
-            <a
-              href="https://docs.litellm.ai/docs/providers"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 underline hover:text-foreground"
-            >
-              Supported model providers
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-
-          {/* Save */}
-          <div className="flex items-center gap-3">
-            <Button onClick={handleSave}>Save Settings</Button>
-            {saved && (
-              <span className="text-sm text-muted-foreground">Saved</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        <div className="flex flex-wrap items-center gap-4 border-t border-border pt-6">
+          <Button onClick={handleSave}>Save settings</Button>
+          {saved && (
+            <span className="text-sm text-muted-foreground">Saved</span>
+          )}
+          <a
+            href="https://docs.litellm.ai/docs/providers"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-sm text-muted-foreground underline decoration-border underline-offset-4 hover:text-ink hover:decoration-ink"
+          >
+            Supported providers
+            <ExternalLink className="h-3 w-3" aria-hidden />
+          </a>
+        </div>
+      </div>
+    </main>
   );
 }

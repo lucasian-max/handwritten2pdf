@@ -1,6 +1,7 @@
 """LangGraph pipeline — the agentic generate→compile→fix loop."""
 
 import asyncio
+import json
 import shutil
 from pathlib import Path
 
@@ -10,8 +11,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from agent.config import AgentConfig
 from agent.progress import EventType, ProgressCallback, ProgressEvent, emit, set_progress_callback
 from agent.state import PipelineState, get_config
+from agent.utils.editorial_notes import split_editorial_notes
 from agent.utils.page_markers import prepend_page_marker
 from agent.utils.text import strip_code_fences
+from clients.cdn.client import upload_file
 from clients.llm.client import acompletion
 from compiler.compiler import compile_latex
 from core.logger import get_logger
@@ -80,6 +83,7 @@ async def transcribe_page(
         temperature=config.temperature,
         max_tokens=config.max_tokens,
         api_key=config.api_key,
+        api_base=config.api_base,
     )
     return strip_code_fences(text)
 
@@ -121,6 +125,7 @@ async def fix_latex(
         temperature=0.0,
         max_tokens=config.max_tokens,
         api_key=config.api_key,
+        api_base=config.api_base,
     )
     return strip_code_fences(text)
 
@@ -139,6 +144,7 @@ async def preprocess_node(state: PipelineState) -> dict:
         "current_page_latex": "",
         "compiler_success": False,
         "errors": [],
+        "editorial_notes": {},
         "output_tex_path": "",
         "output_pdf_path": "",
     }
@@ -163,18 +169,24 @@ async def generate_latex_node(state: PipelineState) -> dict:
     accumulated_body = state.get("accumulated_body", "")
     open_envs = open_environments(accumulated_body) if accumulated_body else []
 
-    system_prompt = config.render_transcribe_prompt(
+    render_prompt = (
+        config.render_material_prompt
+        if config.mode == "material"
+        else config.render_transcribe_prompt
+    )
+    system_prompt = render_prompt(
         page_number=page_idx + 1,
         open_envs=open_envs,
     )
 
-    latex = await transcribe_page(
+    generated = await transcribe_page(
         image_b64=page_b64,
         system_prompt=system_prompt,
         config=config,
         context_latex=accumulated_body,
     )
 
+    latex, notes = split_editorial_notes(generated)
     latex = strip_preamble_from_body(latex)
     new_body = prepend_page_marker(page_idx + 1, latex, accumulated_body)
 
@@ -182,6 +194,7 @@ async def generate_latex_node(state: PipelineState) -> dict:
         "current_page_latex": latex,
         "base_body": accumulated_body,
         "accumulated_body": new_body,
+        "editorial_notes": {page_idx + 1: notes},
         "retry_count": 0,
     }
 
@@ -278,12 +291,14 @@ async def fix_latex_node(state: PipelineState) -> dict:
         config=config,
     )
 
+    fixed_page, notes = split_editorial_notes(fixed_page)
     fixed_page = strip_preamble_from_body(fixed_page)
     new_body = prepend_page_marker(page_idx + 1, fixed_page, state["base_body"])
 
     return {
         "current_page_latex": fixed_page,
         "accumulated_body": new_body,
+        "editorial_notes": {page_idx + 1: notes},
         "retry_count": retry_count,
     }
 
@@ -337,6 +352,8 @@ async def finalize_node(state: PipelineState) -> dict:
     if result.log_output:
         (output_dir / "output.log").write_text(result.log_output, encoding="utf-8")
 
+    _write_editorial_notes(state.get("editorial_notes") or {}, output_dir)
+
     # Copy compiled PDF to output directory
     output_pdf = ""
     if result.pdf_path and result.pdf_path.exists():
@@ -351,6 +368,51 @@ async def finalize_node(state: PipelineState) -> dict:
         "output_tex_path": str(tex_path),
         "output_pdf_path": output_pdf,
     }
+
+
+# ---------------------------------------------------------------------------
+# Output artifacts
+# ---------------------------------------------------------------------------
+
+
+def _write_editorial_notes(notes: dict[int, str], output_dir: Path) -> Path | None:
+    """Write per-page editorial notes to markdown, keeping them out of the PDF."""
+    sections = [f"## Page {page}\n\n{notes[page]}" for page in sorted(notes) if notes[page]]
+    if not sections:
+        return None
+    path = output_dir / "editorial-notes.md"
+    path.write_text("# Editorial Notes\n\n" + "\n\n".join(sections) + "\n", encoding="utf-8")
+    return path
+
+
+async def upload_page_images(pages_dir: Path, api_key: str | None) -> dict[str, str]:
+    """Upload saved page images to the CDN. Best effort — never raises."""
+    if not api_key:
+        return {}
+
+    urls: dict[str, str] = {}
+    for image_path in sorted(pages_dir.glob("page_*.png")):
+        page_number = int(image_path.stem.removeprefix("page_"))
+        try:
+            urls[str(page_number)] = await upload_file(image_path, api_key)
+        except Exception as exc:
+            logger.warning("CDN upload failed for %s: %s", image_path.name, exc)
+            await emit(
+                ProgressEvent(
+                    event_type=EventType.CDN_UPLOAD_FAILED,
+                    page=page_number,
+                    message=f"CDN upload failed for page {page_number}: {exc}",
+                )
+            )
+            continue
+        await emit(
+            ProgressEvent(
+                event_type=EventType.CDN_UPLOADED,
+                page=page_number,
+                message=f"Uploaded page {page_number} to CDN",
+            )
+        )
+    return urls
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +510,12 @@ async def run_pipeline(
             message=f"Starting conversion of {len(pages)} page(s)",
         )
     )
+
+    cdn_urls = await upload_page_images(pages_dir, config.cdn_api_key)
+    if cdn_urls:
+        (config.output_dir / "cdn_urls.json").write_text(
+            json.dumps(cdn_urls, indent=2), encoding="utf-8"
+        )
 
     graph = build_graph()
     compiled = graph.compile()
