@@ -1,15 +1,18 @@
 """API routes for job management and conversion."""
 
 import asyncio
+import ipaddress
 import json
 import shutil
 import uuid
 import zipfile
 from pathlib import Path
 from typing import AsyncGenerator
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -32,6 +35,27 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 preamble_router = APIRouter(prefix="/preamble", tags=["preamble"])
 
 JOBS_DIR = Path("data/jobs")
+
+
+def _ensure_public_api_base(api_base: str) -> None:
+    """Reject non-public hosts in a client-supplied api_base (SSRF guard)."""
+    parsed = urlparse(api_base)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(status_code=422, detail="api_base must be an http(s) URL")
+    host = parsed.hostname
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+            raise HTTPException(
+                status_code=422,
+                detail=f"api_base host '{host}' is not a public address",
+            )
+        return
+    if not ip.is_global:
+        raise HTTPException(
+            status_code=422, detail=f"api_base host '{host}' is not a public address"
+        )
 
 
 class JobEventStore:
@@ -82,7 +106,23 @@ async def create_job(
 
     Accepts multipart form with files and a JSON config string.
     """
-    req = ConvertRequest.model_validate_json(config)
+    try:
+        req = ConvertRequest.model_validate_json(config)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid config JSON: {exc}") from exc
+
+    # A client-chosen api_base must never receive the server's API key.
+    settings = get_settings()
+    if req.api_base and req.api_base != settings.api_base:
+        if not req.api_key:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "A custom api_base requires an api_key in the same request; "
+                    "the server API key is never sent to a client-chosen endpoint."
+                ),
+            )
+        _ensure_public_api_base(req.api_base)
 
     job_id = uuid.uuid4().hex[:12]
     job_dir = _get_job_dir(job_id)
@@ -105,7 +145,6 @@ async def create_job(
         raise HTTPException(status_code=400, detail="No files uploaded")
 
     repo = JobRepository(session)
-    settings = get_settings()
     agent_config = AgentConfig.from_settings(
         settings,
         model=req.model,
@@ -194,7 +233,10 @@ def _build_job_response(job, include_artifacts: bool = False) -> JobResponse:
         output_dir = _get_job_dir(job.id) / "output"
         cdn_path = output_dir / "cdn_urls.json"
         if cdn_path.exists():
-            cdn_urls = json.loads(cdn_path.read_text(encoding="utf-8"))
+            try:
+                cdn_urls = json.loads(cdn_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                cdn_urls = {}
         notes_path = output_dir / "editorial-notes.md"
         if notes_path.exists():
             editorial_notes = notes_path.read_text(encoding="utf-8")

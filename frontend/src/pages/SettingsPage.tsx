@@ -111,7 +111,9 @@ export function SettingsPage() {
 
   const chooseProvider = (value: string) => {
     if (value === "custom") {
-      update({ useCustomModel: true });
+      // Start from a clean slate: a custom model usually targets a different
+      // endpoint than whatever preset was selected before.
+      update({ useCustomModel: true, apiBase: "" });
       return;
     }
     const next = PROVIDER_PRESETS.find((p) => p.id === value);
@@ -304,7 +306,12 @@ export function SettingsPage() {
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => update({ preamble: defaultPreamble })}
+                  onClick={() =>
+                    update({
+                      preamble: defaultPreamble,
+                      preambleIsCustom: false,
+                    })
+                  }
                 >
                   <RotateCcw className="mr-1 h-3 w-3" />
                   Reset to default
@@ -315,9 +322,19 @@ export function SettingsPage() {
               id="preamble"
               className="min-h-[320px] resize-y font-mono text-xs leading-relaxed"
               value={settings.preamble}
-              onChange={(e) => update({ preamble: e.target.value })}
+              onChange={(e) =>
+                update({
+                  preamble: e.target.value,
+                  preambleIsCustom:
+                    e.target.value.trim() !== defaultPreamble.trim(),
+                })
+              }
               spellCheck={false}
             />
+            <p className="text-xs text-muted-foreground">
+              The default is only shown for reference; it is not sent to the
+              server unless you edit it.
+            </p>
           </div>
         </Section>
 

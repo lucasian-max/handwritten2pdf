@@ -141,7 +141,12 @@ export function HomePage() {
         api_key: settings.apiKey || undefined,
         api_base: getEffectiveApiBase(settings),
         mode: settings.mode,
-        preamble: settings.preamble || undefined,
+        // Only a genuinely customized preamble is sent; otherwise the
+        // backend uses its own (kept current) default.
+        preamble:
+          settings.preambleIsCustom && settings.preamble
+            ? settings.preamble
+            : undefined,
       });
       navigate(`/jobs/${res.job_id}`);
     } catch (err) {

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from agent.config import AgentConfig
 from agent.progress import EventType, ProgressCallback, ProgressEvent, emit, set_progress_callback
 from agent.state import PipelineState, get_config
-from agent.utils.editorial_notes import split_editorial_notes
+from agent.utils.editorial_notes import NO_NOTES_PLACEHOLDER, split_editorial_notes
 from agent.utils.page_markers import prepend_page_marker
 from agent.utils.text import strip_code_fences
 from clients.cdn.client import upload_file
@@ -187,6 +188,9 @@ async def generate_latex_node(state: PipelineState) -> dict:
     )
 
     latex, notes = split_editorial_notes(generated)
+    if config.mode == "material" and not notes:
+        # Make a silent omission visible instead of losing the record.
+        notes = NO_NOTES_PLACEHOLDER
     latex = strip_preamble_from_body(latex)
     new_body = prepend_page_marker(page_idx + 1, latex, accumulated_body)
 
@@ -295,6 +299,11 @@ async def fix_latex_node(state: PipelineState) -> dict:
     fixed_page = strip_preamble_from_body(fixed_page)
     new_body = prepend_page_marker(page_idx + 1, fixed_page, state["base_body"])
 
+    # The fix prompt never asks for a notes block, so a fix pass must not wipe
+    # the notes the initial generation produced for this page.
+    if not notes:
+        notes = (state.get("editorial_notes") or {}).get(page_idx + 1, "")
+
     return {
         "current_page_latex": fixed_page,
         "accumulated_body": new_body,
@@ -392,26 +401,36 @@ async def upload_page_images(pages_dir: Path, api_key: str | None) -> dict[str, 
 
     urls: dict[str, str] = {}
     for image_path in sorted(pages_dir.glob("page_*.png")):
-        page_number = int(image_path.stem.removeprefix("page_"))
+        try:
+            page_number = int(image_path.stem.removeprefix("page_"))
+        except ValueError:
+            logger.warning("Skipping unparseable page image: %s", image_path.name)
+            continue
         try:
             urls[str(page_number)] = await upload_file(image_path, api_key)
         except Exception as exc:
             logger.warning("CDN upload failed for %s: %s", image_path.name, exc)
+            try:
+                await emit(
+                    ProgressEvent(
+                        event_type=EventType.CDN_UPLOAD_FAILED,
+                        page=page_number,
+                        message=f"CDN upload failed for page {page_number}: {exc}",
+                    )
+                )
+            except Exception:
+                pass
+            continue
+        try:
             await emit(
                 ProgressEvent(
-                    event_type=EventType.CDN_UPLOAD_FAILED,
+                    event_type=EventType.CDN_UPLOADED,
                     page=page_number,
-                    message=f"CDN upload failed for page {page_number}: {exc}",
+                    message=f"Uploaded page {page_number} to CDN",
                 )
             )
-            continue
-        await emit(
-            ProgressEvent(
-                event_type=EventType.CDN_UPLOADED,
-                page=page_number,
-                message=f"Uploaded page {page_number} to CDN",
-            )
-        )
+        except Exception:
+            pass
     return urls
 
 
@@ -511,11 +530,14 @@ async def run_pipeline(
         )
     )
 
+    cdn_url_path = config.output_dir / "cdn_urls.json"
+    # Never leave URLs from a previous run in a shared output directory.
+    cdn_url_path.unlink(missing_ok=True)
     cdn_urls = await upload_page_images(pages_dir, config.cdn_api_key)
     if cdn_urls:
-        (config.output_dir / "cdn_urls.json").write_text(
-            json.dumps(cdn_urls, indent=2), encoding="utf-8"
-        )
+        tmp_path = cdn_url_path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(cdn_urls, indent=2), encoding="utf-8")
+        os.replace(tmp_path, cdn_url_path)
 
     graph = build_graph()
     compiled = graph.compile()

@@ -41,14 +41,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     group: "Anthropic",
     label: "Claude Sonnet 4.6",
     model: "anthropic/claude-sonnet-4-6",
-    apiBase: "https://api.anthropic.com/v1",
+    // Bare domain: litellm appends "/v1/messages" itself, so a "/v1" suffix
+    // here would request /v1/v1/messages.
+    apiBase: "https://api.anthropic.com",
   },
   {
     id: "claude-haiku",
     group: "Anthropic",
     label: "Claude Haiku 4.5",
     model: "anthropic/claude-haiku-4-5-20251001",
-    apiBase: "https://api.anthropic.com/v1",
+    apiBase: "https://api.anthropic.com",
   },
   {
     id: "gpt-4o",
@@ -74,6 +76,10 @@ export interface AppSettings {
   useCustomModel: boolean;
   apiKey: string;
   preamble: string;
+  /** True only when the user actually edited the preamble away from the
+   *  server default. When false, no preamble is sent and the backend's own
+   *  (kept current) default is used. */
+  preambleIsCustom: boolean;
   apiBase: string;
   mode: ConversionMode;
 }
@@ -84,21 +90,40 @@ const DEFAULTS: AppSettings = {
   useCustomModel: false,
   apiKey: "",
   preamble: "",
+  preambleIsCustom: false,
   apiBase: DEFAULT_PRESET.apiBase,
   mode: "material",
 };
+
+/**
+ * A stored copy of an *older default* preamble would keep the thmtools bug
+ * that breaks TeX Live 2026 compilation (thmtools loaded before the
+ * \newtheorem block). Detect it and treat the preamble as absent so the
+ * backend ships its fixed default instead. A genuinely customized preamble
+ * that happens to match this shape is rare and can simply be re-saved.
+ */
+function looksLikeStaleDefaultPreamble(preamble: string): boolean {
+  const thmtools = preamble.indexOf("\\usepackage{thmtools}");
+  const newtheorem = preamble.indexOf("\\newtheorem");
+  return thmtools !== -1 && newtheorem !== -1 && thmtools < newtheorem;
+}
 
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
     const stored = JSON.parse(raw) as Partial<AppSettings>;
+    const storedPreamble =
+      typeof stored.preamble === "string" ? stored.preamble : "";
+    const stalePreamble = looksLikeStaleDefaultPreamble(storedPreamble);
     return {
       ...DEFAULTS,
       ...stored,
       // Installations saved before base URLs existed keep the server default.
       apiBase: stored.apiBase ?? "",
       mode: stored.mode === "transcribe" ? "transcribe" : "material",
+      preamble: stalePreamble ? "" : storedPreamble,
+      preambleIsCustom: !stalePreamble && Boolean(stored.preambleIsCustom),
     };
   } catch {
     return { ...DEFAULTS };

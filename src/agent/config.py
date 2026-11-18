@@ -108,7 +108,12 @@ class AgentConfig:
             "latex_engine": settings.latex_engine,
             "compile_timeout": settings.compile_timeout,
         }
-        base.update({k: v for k, v in overrides.items() if v is not None})
+        client_overrides = {k: v for k, v in overrides.items() if v is not None}
+        if client_overrides.get("api_base") not in (None, settings.api_base):
+            # Defense in depth: a client-chosen endpoint never receives the
+            # server's API key, even if the request-layer guard is bypassed.
+            base["api_key"] = client_overrides.get("api_key")
+        base.update(client_overrides)
         return cls(**base)
 
     def render_transcribe_prompt(self, page_number: int, open_envs: list[str]) -> str:

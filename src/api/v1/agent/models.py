@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from db.models import JobStatus
 
@@ -16,6 +16,15 @@ class ConvertRequest(BaseModel):
     max_retries: int = 3
     dpi: int = 300
     preamble: str | None = None
+
+    @field_validator("api_base", "api_key", "preamble", mode="before")
+    @classmethod
+    def _blank_to_none(cls, v: object) -> object:
+        """Treat blank/whitespace strings as absent so they cannot override
+        server configuration (an empty string is not None downstream)."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class PageInfo(BaseModel):

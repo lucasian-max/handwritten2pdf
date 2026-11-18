@@ -9,6 +9,8 @@ export const EVENT_TYPES = [
   "page_compiled_ok",
   "page_fix_attempt",
   "page_done",
+  "cdn_uploaded",
+  "cdn_upload_failed",
   "finalizing",
   "job_completed",
   "job_failed",

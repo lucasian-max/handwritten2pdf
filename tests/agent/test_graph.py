@@ -171,6 +171,27 @@ class TestEditorialNotesSplit:
         )
         assert body == "\\begin{theorem}\nStatement.\n\\end{theorem}"
 
+    def test_doubled_percent_marker_still_splits(self):
+        # The model sometimes doubles the comment character.
+        doubled = "% " + NOTES_MARKER.removeprefix("% ")
+        body, notes = split_editorial_notes(f"Text.\n{doubled}\n{NOTES_LINES}")
+        assert body == "Text."
+        assert "corrected a sign error" in notes
+
+    def test_mid_line_marker_splits(self):
+        # A marker appended after prose comments the rest of that line; the
+        # prose must stay in the body and the notes must not leak into it.
+        line = "Text $x$. % --- EDITORIAL NOTES: PAGE 1 --- tail"
+        body, notes = split_editorial_notes(f"{line}\n{NOTES_LINES}")
+        assert body == "Text $x$."
+        assert "corrected a sign error" in notes
+        assert "EDITORIAL NOTES" not in body
+
+    def test_marker_before_body_yields_empty_body(self):
+        body, notes = split_editorial_notes(f"{NOTES_MARKER}\n{NOTES_LINES}")
+        assert body == ""
+        assert notes == NOTES_LINES
+
 
 class TestConfigSerialization:
     def test_api_base_and_mode_serialized(self):
@@ -222,6 +243,55 @@ class TestEditorialNotesPipeline:
         assert notes_path.exists()
         notes = notes_path.read_text(encoding="utf-8")
         assert "## Page 1" in notes
+        assert "corrected a sign error" in notes
+
+    @pytest.mark.asyncio
+    async def test_missing_marker_leaves_visible_note(self, tmp_path):
+        """A page with no notes block must not vanish silently."""
+        config = AgentConfig(output_dir=tmp_path / "output", max_retries=1, mode="material")
+
+        result, _, _ = await _run_mocked_pipeline(tmp_path, config, "Just body text.")
+
+        notes = (config.output_dir / "editorial-notes.md").read_text(encoding="utf-8")
+        assert "did not emit an editorial-notes block" in notes
+        assert result["accumulated_body"].endswith("Just body text.")
+
+    @pytest.mark.asyncio
+    async def test_fix_pass_preserves_notes(self, tmp_path):
+        """A compile fix must not wipe the notes produced at generation."""
+        from types import SimpleNamespace
+
+        config = AgentConfig(output_dir=tmp_path / "output", max_retries=1, mode="material")
+        generated = f"Broken \\undefinedcmd $x$.\n\n{NOTES_MARKER}\n{NOTES_LINES}"
+        img_path = _make_image(tmp_path)
+
+        compile_results = [
+            CompilerResult(
+                success=False,
+                pdf_path=None,
+                errors=[SimpleNamespace(line=1, message="Undefined control sequence.", context="")],
+                log_output="",
+            ),
+            # After the fix.
+            CompilerResult(success=True, pdf_path=None, errors=[], log_output=""),
+            # Final document assembly.
+            CompilerResult(success=True, pdf_path=None, errors=[], log_output=""),
+        ]
+        with (
+            patch("agent.graph.transcribe_page", new_callable=AsyncMock) as mock_transcribe,
+            patch("agent.graph.fix_latex", new_callable=AsyncMock) as mock_fix,
+            patch("agent.graph.compile_latex") as mock_compile,
+        ):
+            mock_transcribe.return_value = generated
+            # A fix pass never re-emits the notes block.
+            mock_fix.return_value = "Fixed text $x$."
+            mock_compile.side_effect = compile_results
+            result = await run_pipeline([img_path], config)
+
+        assert mock_fix.await_count == 1
+        assert result["accumulated_body"].endswith("Fixed text $x$.")
+        assert "EDITORIAL NOTES" not in result["accumulated_body"]
+        notes = (config.output_dir / "editorial-notes.md").read_text(encoding="utf-8")
         assert "corrected a sign error" in notes
 
 
