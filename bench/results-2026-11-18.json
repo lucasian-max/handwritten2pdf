@@ -1,0 +1,209 @@
+[
+  {
+    "model": "z-ai/glm-5.3-flash",
+    "page": 1,
+    "job_id": "bc69ee6919a2",
+    "status": "completed",
+    "duration_s": 88.4,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "z-ai/glm-5.3-flash",
+    "page": 2,
+    "job_id": "bd8106bea424",
+    "status": "completed",
+    "duration_s": 16.2,
+    "has_pdf": true,
+    "hard": 7,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "z-ai/glm-5.3-flashx",
+    "page": 1,
+    "job_id": "5b9d121d0d11",
+    "status": "completed",
+    "duration_s": 76.3,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "z-ai/glm-5.3-flashx",
+    "page": 2,
+    "job_id": "62761621c550",
+    "status": "completed",
+    "duration_s": 44.3,
+    "has_pdf": true,
+    "hard": 6,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": [
+      "MISS \\(\\s*x\\s*-\\s*1\\s*\\)\\s*e\\s*\\^\\s*{?x|\\(\\s*\\(x\\s*-\\s*1\\)"
+    ]
+  },
+  {
+    "model": "z-ai/glm-4.6v",
+    "page": 1,
+    "job_id": "44eeb856f072",
+    "status": "completed",
+    "duration_s": 76.3,
+    "has_pdf": false,
+    "hard": 4,
+    "hard_max": 5,
+    "soft": 2,
+    "detail": [
+      "MISS \\\\oint"
+    ]
+  },
+  {
+    "model": "z-ai/glm-4.6v",
+    "page": 2,
+    "job_id": "3440301e5ffb",
+    "status": "completed",
+    "duration_s": 352.9,
+    "has_pdf": true,
+    "hard": 7,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "page": 1,
+    "job_id": "04f2b9d06eae",
+    "status": "completed",
+    "duration_s": 24.2,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "deepseek/deepseek-v4.1-flash",
+    "page": 2,
+    "job_id": "aa454ce32751",
+    "status": "completed",
+    "duration_s": 36.2,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": [
+      "MISS u\\s*\\\\?,?\\s*dv|u\\s+dv",
+      "MISS v\\s*\\\\?,?\\s*du|v\\s+du"
+    ]
+  },
+  {
+    "model": "deepseek/deepseek-v4-flash-vision-exp",
+    "page": 1,
+    "job_id": "a81c0709bf42",
+    "status": "completed",
+    "duration_s": 52.3,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "deepseek/deepseek-v4-flash-vision-exp",
+    "page": 2,
+    "job_id": "45675950ddda",
+    "status": "completed",
+    "duration_s": 40.2,
+    "has_pdf": true,
+    "hard": 7,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "google/gemini-3-flash-preview",
+    "page": 1,
+    "job_id": "9497d0d455d3",
+    "status": "completed",
+    "duration_s": 16.2,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "google/gemini-3-flash-preview",
+    "page": 2,
+    "job_id": "9172ec9aaf71",
+    "status": "completed",
+    "duration_s": 20.2,
+    "has_pdf": true,
+    "hard": 7,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": []
+  },
+  {
+    "model": "qwen/qwen3-vl-235b-a22b-instruct",
+    "page": 1,
+    "job_id": "c05372f45118",
+    "status": "completed",
+    "duration_s": 24.2,
+    "has_pdf": true,
+    "hard": 4,
+    "hard_max": 5,
+    "soft": 3,
+    "detail": [
+      "MISS \\\\oint"
+    ]
+  },
+  {
+    "model": "qwen/qwen3-vl-235b-a22b-instruct",
+    "page": 2,
+    "job_id": "a410835d72f3",
+    "status": "completed",
+    "duration_s": 32.2,
+    "has_pdf": false,
+    "hard": 5,
+    "hard_max": 7,
+    "soft": 3,
+    "detail": [
+      "MISS e\\s*\\^\\s*{?x",
+      "MISS \\(\\s*x\\s*-\\s*1\\s*\\)\\s*e\\s*\\^\\s*{?x|\\(\\s*\\(x\\s*-\\s*1\\)"
+    ]
+  },
+  {
+    "model": "openai/gpt-4o",
+    "page": 1,
+    "job_id": "eb8e51e78382",
+    "status": "completed",
+    "duration_s": 12.2,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 5,
+    "soft": 2,
+    "detail": []
+  },
+  {
+    "model": "openai/gpt-4o",
+    "page": 2,
+    "job_id": "0cac04b2e186",
+    "status": "completed",
+    "duration_s": 12.2,
+    "has_pdf": true,
+    "hard": 5,
+    "hard_max": 7,
+    "soft": 2,
+    "detail": [
+      "MISS e\\s*\\^\\s*{?x",
+      "MISS \\(\\s*x\\s*-\\s*1\\s*\\)\\s*e\\s*\\^\\s*{?x|\\(\\s*\\(x\\s*-\\s*1\\)"
+    ]
+  }
+]

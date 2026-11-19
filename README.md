@@ -138,6 +138,24 @@ DeepSeek v4.1 Flash is the default over the faster Gemini preview for stability:
 preview model can disappear from the proxy at any time. Note that `z-ai/glm-5.3`
 (non-flash) is text-only on the proxy and cannot accept page images.
 
+### Benchmark harness
+
+`bench/` reproduces the comparison: two synthetic handwritten fixtures with known
+ground truth (`fixtures/*.png`, regenerable with `generate_page1.py` /
+`generate_page2.py`), a vision-capability probe (`probe_vision.py`, needs
+`HACKCLUB_AI_KEY`), and `bench_convert.py`, which pushes each candidate through the real
+material-mode pipeline against a running server and scores math fidelity, compile
+success, and speed.
+
+```sh
+python3 bench/generate_page1.py bench/fixtures/hw_page1.svg   # regenerate a fixture
+export HACKCLUB_AI_KEY=sk-hc-v1-...
+python3 bench/probe_vision.py                                  # who accepts images
+python3 bench/bench_convert.py                                 # full run (server on :8000)
+```
+
+Recorded results: `bench/results-2026-11-18.json`.
+
 notes2latex works with any vision language model accessible through [LiteLLM](https://docs.litellm.ai/docs/providers). Some handle handwritten math better than others. Here's what has worked well so far in my limited testing; this is not exhaustive and the landscape moves fast.
 
 ### Proprietary models
