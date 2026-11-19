@@ -17,6 +17,43 @@ lecture — faithful to the original, with the gaps the author skipped filled in
 - Preserve the author's questions, motivation, worked examples, intermediate
   calculations, and cautions. Matching the formulas alone is not a restoration of the
   content.
+- **Resolve conflicts from content, not from labels.** When a heading says one thing and
+  the body says another, the body wins: fix the heading, keep both readings in the notes,
+  and discard neither silently. Handwritten headings are as fallible as anything else.
+
+## Hard rendering rules
+
+These prevent broken builds and wrong statements. They apply to every page.
+
+1. **Typeset only what the engine can render.** Output ASCII and LaTeX commands. Never
+   emit Unicode glyphs into the LaTeX source: circled digits (U+2460–U+2473), curly
+   quotes, arrows, math symbols, or unit signs. Replace each with its LaTeX form — for
+   example `` `` `` and `''` for quotes, `--` and `---` for dashes, `\times`, `\pm`,
+   `\le`, `\ne`, `\infty`, `\to`, `\cdot`, and numbered lists instead of circled
+   markers, or `\textcircled{1}` only when already in text mode. One untranslatable
+   character is a fatal error for the whole job.
+2. **Never present a doubtful reading as fact.** If a boxed or circled expression is
+   illegible or nonsensical in context (something like "π ≤ 0"), omit it from the body
+   and record the candidates and their consequence in the editorial notes. A visible gap
+   is honest; a fabricated statement is not. Do not box speculations.
+3. **Verify every figure against the mathematics it claims to show, and make sure the
+   inverse is actually drawn.** A plotted curve must satisfy the domain and range of the
+   function in its label, not of some relative. For an inverse function, the plot is the
+   reflection of the restricted original — the axes swap, and horizontal/vertical
+   asymptotes exchange roles. Check the triple label ↔ curve ↔ stated domain/range; if
+   they disagree, redraw the curve rather than keeping the wrong one and relabelling it.
+   Additionally: **a section about an inverse function must contain a plot of that
+   inverse.** If the page only sketches the original function (or its restricted branch),
+   add the inverse plot as a paired figure and record the addition in the editorial
+   notes. A section titled "Inverse cosine" whose only curve is $\cos x$ is incomplete,
+   however correctly that curve is drawn.
+4. **Complete, non-duplicated property sets.** Every defined object gets its full set of
+   statements in one place: domain, range, parity or symmetry law, and composition
+   identities with their exact validity intervals. State each claim once — do not repeat
+   the same object's property list in a later section, and do not let a page boundary
+   restart a list the previous page began. The document as a whole gets one summary
+   table, not one per page.
+5. **Clean, friendly layout** (see the style section below).
 
 ## Materialization
 
@@ -61,6 +98,31 @@ boxes, or footnotes in the body for any of this.
   quantitative, add a caption remark that it is a schematic.
 - Photos or data plots that cannot be captured faithfully: leave a
   `% [FIGURE: description]` placeholder rather than fabricating content.
+
+### Figure and layout style
+
+Follow the conventions the good conversions share; they make the output friendly to
+read on a phone as well as in print.
+
+- **Pair related pictures.** When a page shows a function and its inverse, or a
+  transformation and its result, place the two plots side by side in `minipage`
+  blocks, not in one crowded axis.
+- **One accent, two weights.** Draw the unrestricted or reference curve dashed in grey;
+  draw the restricted branch or the result solid in the document's ink colour. Label
+  each curve with its equation inside the plot.
+- **Label everything that carries meaning.** Axis names, tick values (radian multiples
+  as `\frac{\pi}{2}`, not decimals), asymptotes as dashed lines, notable points marked.
+  No unlabelled axes, no decimal tick labels standing in for `π` fractions.
+- **Properties as compact lists**, one claim per item, each condition attached to its
+  claim rather than parked in a distant sentence.
+- **Worked examples that teach the trap.** When the source shows a tempting wrong route
+  before the correct one, keep both: "wrong route" with the error named, "correct route"
+  with the range or assumption that rules the wrong one out, and box the final answer
+  once.
+- **Close dense sections with a summary table** (object, domain, range, symmetry, key
+  identity) so the page can be revised from one glance.
+- **Respect the source's structure** — its date, outline, and section order — while
+  making spacing, notation, and numbering internally consistent.
 
 ## Pre-defined Document Environment
 

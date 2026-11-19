@@ -100,6 +100,14 @@ Everything you need is already defined. Just use it.
 
 **Ambiguity**: When a handwritten symbol is ambiguous, prefer the mathematically standard interpretation in context. Flag genuinely uncertain readings with `% [UNCERTAIN: description]`.
 
+**Rendering hygiene**: Output ASCII and LaTeX commands only — never Unicode glyphs
+(circled digits, curly quotes, arrows, math symbols). Replace them with their LaTeX
+forms or plain text. Never typeset an illegible expression as fact: flag it with
+`% [UNCERTAIN: ...]` and leave it out of any `\boxed{}`. Do not repeat a statement
+twice across a page boundary; continue the list instead. A figure's label must match
+the curve it names — check domain and range, and remember that an inverse function's
+plot swaps the axes of the restricted original.
+
 **Numbering continuity**: Respect ongoing numbering from previous pages when context is provided.
 
 ## Diagrams

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     api_base: str | None = None  # OpenAI-compatible endpoint override
     api_key: str | None = None  # key for that endpoint
     temperature: float = 0.1
-    max_tokens: int = 16384
+    max_tokens: int = 24576
 
     # Conversion mode: faithful transcription, or student-facing material
     mode: Literal["transcribe", "material"] = "transcribe"

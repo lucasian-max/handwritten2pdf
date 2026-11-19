@@ -29,4 +29,12 @@ async def acompletion(
         kwargs["api_base"] = api_base
 
     response = await litellm.acompletion(**kwargs)
-    return response.choices[0].message.content
+    content = response.choices[0].message.content
+    if not content or not content.strip():
+        # Some providers (notably reasoning models on long pages) return an empty
+        # content field instead of raising. Treat it as a retriable failure so the
+        # tenacity retry in the graph gets another attempt instead of crashing
+        # downstream on None.strip().
+        finish = response.choices[0].finish_reason
+        raise ValueError(f"Model returned empty content (finish_reason={finish!r}, model={model})")
+    return content
