@@ -99,11 +99,13 @@ async def author_page(
     config: AgentConfig,
     model: str | None = None,
     revision_notes: str = "",
+    fallback_model: str | None = None,
 ) -> str:
     """Author teaching material (text only) from a page transcription.
 
-    Retries once with a concision hint if the provider truncates the output at
-    its token cap (a cut LaTeX body compiles to nothing).
+    Robustness: if the provider truncates the output at its token cap, retry once
+    with a concision hint; if the author model itself is unavailable (402/429/5xx
+    from an upstream), fall back to ``fallback_model`` so the job still finishes.
     """
     base_user = f"Write the page from this transcription.\n\n{transcription}"
     if revision_notes:
@@ -112,30 +114,42 @@ async def author_page(
             "Rewrite the page fixing them and keep everything else that was correct:\n"
             f"{revision_notes}"
         )
+    primary = model or config.model
+    candidates = [primary]
+    if fallback_model and fallback_model != primary:
+        candidates.append(fallback_model)
+
     last_error: Exception | None = None
-    for attempt in range(2):
-        user = base_user
-        if attempt:
-            user += (
-                "\n\nIMPORTANT: the previous attempt was cut off at the token limit. "
-                "Produce a COMPLETE page. Keep it within about two to three typeset "
-                "pages; drop optional elaboration, never content."
-            )
-        try:
-            text = await acompletion(
-                model=model or config.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user},
-                ],
-                temperature=config.temperature,
-                max_tokens=config.max_tokens,
-                api_key=config.api_key,
-                api_base=config.api_base,
-            )
-            return strip_code_fences(text)
-        except TruncatedResponse as exc:
-            last_error = exc
+    for candidate in candidates:
+        for attempt in range(2):
+            user = base_user
+            if attempt:
+                user += (
+                    "\n\nIMPORTANT: the previous attempt was cut off at the token limit. "
+                    "Produce a COMPLETE page. Keep it within about two to three typeset "
+                    "pages; drop optional elaboration, never content."
+                )
+            try:
+                text = await acompletion(
+                    model=candidate,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    api_key=config.api_key,
+                    api_base=config.api_base,
+                )
+                if candidate != primary:
+                    logger.warning("Authoring fell back to %s: %s", candidate, last_error)
+                return strip_code_fences(text)
+            except TruncatedResponse as exc:
+                last_error = exc
+                continue
+            except Exception as exc:  # noqa: BLE001 - provider outage: try the fallback
+                last_error = exc
+                break
     assert last_error is not None
     raise last_error
 
@@ -521,6 +535,7 @@ async def verify_latex_node(state: PipelineState) -> dict:
             config=config,
             model=config.role_models()["author"],
             revision_notes=defect_text,
+            fallback_model=config.role_models()["transcribe"],
         )
         latex, notes = split_editorial_notes(regenerated)
         joined_notes = "\n".join(part for part in (current_notes, notes) if part)

@@ -517,3 +517,30 @@ class TestVerifyNode:
     def test_routing_single_pipeline_unchanged(self):
         config = AgentConfig(pipeline="single").to_state_dict()
         assert route_after_compile({"compiler_success": True, "config_dict": config}) == "advance"
+
+
+class TestAuthorFallback:
+    @pytest.mark.asyncio
+    async def test_api_error_falls_back_to_transcribe_model(self):
+        from agent.graph import author_page
+
+        config = AgentConfig(model="primary")
+        calls = []
+
+        async def fake(model, **kwargs):
+            calls.append(model)
+            if model == "primary":
+                raise RuntimeError("402 spending limit")
+            return "body"
+
+        with patch("agent.graph.acompletion", side_effect=fake):
+            out = await author_page(
+                transcription="T",
+                system_prompt="S",
+                config=config,
+                model="primary",
+                fallback_model="fallback",
+            )
+
+        assert out == "body"
+        assert calls == ["primary", "fallback"]
