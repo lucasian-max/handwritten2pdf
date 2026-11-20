@@ -596,11 +596,21 @@ async def verify_latex_node(state: PipelineState) -> dict:
         }
 
     summary = "no defects" if verdict == "ok" else f"{len(defects)} defect(s) remain"
+    defect_lines = "\n".join(
+        f"%   defect: {d.get('page_element', '?')} - {d.get('problem', '')}"
+        if isinstance(d, dict)
+        else f"%   defect: {d}"
+        for d in defects
+    )
     return {
         "verify_action": "advance",
         "verify_issues": defects,
         "editorial_notes": {
-            page_no: (current_notes + f"\n% verify round {verify_count + 1}: {summary}").strip()
+            page_no: (
+                current_notes
+                + f"\n% verify round {verify_count + 1}: {summary}"
+                + (f"\n{defect_lines}" if defect_lines else "")
+            ).strip()
         },
     }
 

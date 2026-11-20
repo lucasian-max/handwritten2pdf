@@ -591,3 +591,36 @@ class TestStructuralValidation:
         config = AgentConfig(model="m", fallback_models=["f1", "f2"])
         assert _model_chain(config) == ["m", "f1", "f2"]
         assert _model_chain(config, "other") == ["other", "f1", "f2"]
+
+
+class TestVerifyNotes:
+    @pytest.mark.asyncio
+    async def test_defects_are_recorded_in_notes(self, tmp_path):
+        from agent.graph import verify_latex_node
+
+        config = AgentConfig(
+            output_dir=tmp_path / "output", mode="material", pipeline="split", verify_rounds=0
+        )
+        state = {
+            "pages": ["orig"],
+            "config_dict": config.to_state_dict(),
+            "page_index": 0,
+            "transcriptions": {1: "T"},
+            "page_pdf_path": "/tmp/fake.pdf",
+            "current_page_latex": "X",
+            "editorial_notes": {1: "% notes"},
+            "base_body": "",
+            "verify_count": 0,
+        }
+        report = {
+            "verdict": "regen",
+            "defects": [{"page_element": "fig 2", "problem": "arccos missing", "fix": "add"}],
+        }
+        with (
+            patch("agent.graph._render_page_png", return_value="b64"),
+            patch("agent.graph.verify_page", new_callable=AsyncMock) as mv,
+        ):
+            mv.return_value = report
+            out = await verify_latex_node(state)
+        # verify_rounds=0: no regeneration, but the defect is still recorded
+        assert "arccos missing" in out["editorial_notes"][1]
