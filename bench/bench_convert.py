@@ -4,7 +4,7 @@
 For each (model, page): create a material-mode job, wait for completion,
 then score the artifacts against the known ground truth of each fixture.
 """
-import base64
+
 import json
 import re
 import time
@@ -62,20 +62,24 @@ def post_job(model: str, page: int) -> str:
         "api_base": "https://ai.hackclub.com/proxy/v1",
         "mode": "material",
     }
-    b64 = base64.b64encode(open(PAGES[page], "rb").read()).decode()
     # multipart via stdlib
     boundary = "----benchboundary123"
     body = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="files"; filename="hw_page{page}.png"\r\n'
-        f"Content-Type: image/png\r\n\r\n"
-    ).encode() + open(PAGES[page], "rb").read() + (
-        f"\r\n--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="config"\r\n\r\n'
-        f"{json.dumps(config)}\r\n--{boundary}--\r\n"
-    ).encode()
+        (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="files"; filename="hw_page{page}.png"\r\n'
+            f"Content-Type: image/png\r\n\r\n"
+        ).encode()
+        + open(PAGES[page], "rb").read()
+        + (
+            f"\r\n--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="config"\r\n\r\n'
+            f"{json.dumps(config)}\r\n--{boundary}--\r\n"
+        ).encode()
+    )
     req = urllib.request.Request(
-        f"{API}/jobs", data=body,
+        f"{API}/jobs",
+        data=body,
         headers={
             "Content-Type": f"multipart/form-data; boundary={boundary}",
         },
@@ -106,7 +110,7 @@ def score(job_dir: Path, page: int) -> dict:
     tex = tex_path.read_text(encoding="utf-8")
     # score the generated body only (after the page marker), not the preamble
     marker = re.search(r"% ====== Page \d+ ======", tex)
-    body = tex[marker.end():] if marker else tex
+    body = tex[marker.end() :] if marker else tex
     body_low = body.lower()
     notes = notes_path.read_text(encoding="utf-8") if notes_path.exists() else ""
 
@@ -122,8 +126,10 @@ def score(job_dir: Path, page: int) -> dict:
             result["soft"] += 1
 
     # q_enc is illegible in the fixture; flagging the uncertainty is equally good
-    if page == 1 and not re.search(r"enc", body_low) and (
-        "uncertain" in notes.lower() or "ambiguous" in notes.lower()
+    if (
+        page == 1
+        and not re.search(r"enc", body_low)
+        and ("uncertain" in notes.lower() or "ambiguous" in notes.lower())
     ):
         result["soft"] += 1
         result["detail"].append("flagged ambiguous subscript in notes")
@@ -146,11 +152,17 @@ def main() -> None:
                 job_id = post_job(model, page)
                 d = wait_job(job_id)
                 sc = score(jobs_root / job_id, page)
-                results.append({
-                    "model": model, "page": page, "job_id": job_id,
-                    "status": d["status"], "duration_s": d.get("_duration"),
-                    "has_pdf": d.get("has_pdf", False), **sc,
-                })
+                results.append(
+                    {
+                        "model": model,
+                        "page": page,
+                        "job_id": job_id,
+                        "status": d["status"],
+                        "duration_s": d.get("_duration"),
+                        "has_pdf": d.get("has_pdf", False),
+                        **sc,
+                    }
+                )
                 print(json.dumps(results[-1]), flush=True)
             except Exception as exc:  # noqa: BLE001
                 results.append({"model": model, "page": page, "error": str(exc)})

@@ -5,6 +5,7 @@ Usage:
     export HACKCLUB_AI_KEY=sk-hc-v1-...
     python3 probe_vision.py
 """
+
 import base64
 import json
 import os
@@ -43,16 +44,19 @@ def main() -> int:
         body = {
             "model": model,
             "max_tokens": 30,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "What color is this image? One word."},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-                ],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What color is this image? One word."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                    ],
+                }
+            ],
         }
         req = urllib.request.Request(
-            BASE, data=json.dumps(body).encode(),
+            BASE,
+            data=json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"},
         )
         try:

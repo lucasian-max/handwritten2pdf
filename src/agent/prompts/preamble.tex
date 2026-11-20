@@ -1,6 +1,8 @@
 \documentclass[12pt]{article}
 
 % --- Packages ---
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{mathtools}
 \usepackage{cancel}
@@ -14,7 +16,14 @@
 \usepackage{siunitx}
 \usepackage{tikz, tikz-cd, pgfplots}
 \pgfplotsset{compat=1.18}
-\usetikzlibrary{decorations.pathreplacing, decorations.markings, arrows.meta, calc, positioning}
+\usepgfplotslibrary{fillbetween, groupplots}
+\usetikzlibrary{decorations.pathreplacing, decorations.markings,
+  decorations.pathmorphing, arrows.meta, calc, positioning, patterns,
+  shapes.geometric, automata, angles, quotes, intersections}
+
+% --- Subject kits (keep lean; see README "Diagram kit") ---
+\usepackage[american]{circuitikz}   % circuits
+\usepackage[version=4]{mhchem}      % \ce{...} chemistry in text/math
 \usepackage{algorithm2e}
 \usepackage{listings}
 \usepackage{geometry}
@@ -22,6 +31,9 @@
 \usepackage{enumitem}
 \usepackage{hyperref}
 \usepackage{tcolorbox}
+\usepackage{chemfig}                % 2D structures (after xcolor via tikz)
+\usepackage[edges]{forest}          % compact trees
+\usetikzlibrary{quantikz2}          % quantum circuits (\begin{quantikz})
 
 % --- Theorem environments ---
 \newtheorem{theorem}{Theorem}[section]

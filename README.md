@@ -138,6 +138,25 @@ DeepSeek v4.1 Flash is the default over the faster Gemini preview for stability:
 preview model can disappear from the proxy at any time. Note that `z-ai/glm-5.3`
 (non-flash) is text-only on the proxy and cannot accept page images.
 
+### Diagram kit
+
+The locked preamble ships a lean, clash-tested TikZ kit: **pgfplots** (with
+`fillbetween`, `groupplots`, `compat=1.18`), **circuitikz**, **mhchem** (`\ce{}`),
+**chemfig**, **tikz-cd**, **quantikz**, **forest**, the **automata**/`angles`/`quotes`/
+`intersections` libraries, plus `arrows.meta`, `positioning`, `patterns`,
+`shapes.geometric`, `decorations.*`. Lashed-in cost: ~+1.2 s per page compile, ≈29 MB
+installed (circuitikz alone is 16 MB).
+
+Subject opt-ins that are *not* loaded by default (install with `tlmgr` if you need them):
+`tkz-euclide` + `xpatch` (constructions), `physketch`/`optikz` (optics, FBDs),
+`tikz-3dplot` (3D frames), `tikz-feynhand` (manual Feynman — `tikz-feynman`'s automatic
+layout silently breaks under pdflatex), `yquant` (quantum), `pgfgantt`/`chronos`
+(timelines), `pgf-umlcd` (UML), `bodeplot` + `ifplatform` (control).
+
+Two rules that come from hard experience: use `tikz-feynhand` rather than `tikz-feynman`
+under pdflatex, and never load both `stanli` and `tikz-3dplot` (duplicate 3dplot macros
+crash the build).
+
 ### Benchmark harness
 
 `bench/` reproduces the comparison: two synthetic handwritten fixtures with known

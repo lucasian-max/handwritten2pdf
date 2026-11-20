@@ -32,10 +32,16 @@ The preamble is already written and locked — you cannot modify it. Below is a 
 
 ### Loaded Packages
 
-amsmath, amssymb, amsthm, mathtools, thmtools, cancel, mathrsfs, physics, siunitx, tikz, tikz-cd, pgfplots, algorithm2e, listings, geometry, enumitem, hyperref, tcolorbox.
+amsmath, amssymb, amsthm, mathtools, thmtools, cancel, mathrsfs, physics, siunitx, tikz, tikz-cd, pgfplots (`compat=1.18`; libraries `fillbetween`, `groupplots`), circuitikz, mhchem (`\ce{}`), chemfig, forest, quantikz, algorithm2e, listings, geometry, enumitem, hyperref, tcolorbox, lmodern.
 
 TikZ libraries loaded: `decorations.pathreplacing`, `decorations.markings`,
-`arrows.meta`, `calc`, `positioning`.
+`decorations.pathmorphing`, `arrows.meta`, `calc`, `positioning`, `patterns`,
+`shapes.geometric`, `automata`, `angles`, `quotes`, `intersections`.
+
+Use the package that matches the content: `circuitikz` for circuits, `\ce{...}` for
+chemical formulas, `chemfig` for structures, `tikz-cd` for commutative diagrams,
+`quantikz` for quantum circuits, `forest` for trees, the `automata` library for state
+machines, `pgfplots` for plots (cap `samples` at 200).
 
 ### Theorem-like Environments
 
