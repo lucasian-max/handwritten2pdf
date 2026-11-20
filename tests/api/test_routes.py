@@ -146,3 +146,50 @@ class TestServerKeyIsolation:
         cfg = AgentConfig.from_settings(self._settings())
         assert cfg.api_key == "server-secret"
         assert cfg.api_base == "https://default.example/v1"
+
+
+class TestPipelineRequest:
+    def test_pipeline_accepted(self):
+        req = ConvertRequest.model_validate_json(
+            '{"pipeline": "split", "transcribe_model": "a", "author_model": "b", '
+            '"verify_model": "c", "verify_rounds": 2}'
+        )
+        assert req.pipeline == "split"
+        assert req.verify_rounds == 2
+
+    def test_blank_pipeline_normalized(self):
+        req = ConvertRequest.model_validate_json('{"pipeline": "  ", "author_model": ""}')
+        assert req.pipeline is None
+        assert req.author_model is None
+
+    def test_garbage_pipeline_rejected(self):
+        with pytest.raises(ValidationError):
+            ConvertRequest.model_validate_json('{"pipeline": "multi"}')
+
+
+class TestSplitRoleModels:
+    def _settings(self) -> Settings:
+        return Settings(
+            model="server/model",
+            api_base="https://default.example/v1",
+            transcribe_model="server/tr",
+            author_model="server/au",
+            verify_model="server/ve",
+        )
+
+    def test_roles_kept_on_trusted_base(self):
+        cfg = AgentConfig.from_settings(self._settings())
+        assert cfg.transcribe_model == "server/tr"
+        assert cfg.author_model == "server/au"
+
+    def test_roles_cleared_on_client_base(self):
+        cfg = AgentConfig.from_settings(
+            self._settings(),
+            api_base="https://client.example/v1",
+            api_key="client-key",
+        )
+        assert cfg.transcribe_model is None
+        assert cfg.author_model is None
+        assert cfg.verify_model is None
+        # Role models then fall back to the requested model.
+        assert cfg.role_models()["author"] == "server/model"

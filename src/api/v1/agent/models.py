@@ -13,11 +13,25 @@ class ConvertRequest(BaseModel):
     api_base: str | None = None
     api_key: str | None = None
     mode: Literal["transcribe", "material"] | None = None
+    pipeline: Literal["single", "split"] | None = None
+    transcribe_model: str | None = None
+    author_model: str | None = None
+    verify_model: str | None = None
+    verify_rounds: int | None = None
     max_retries: int = 3
     dpi: int = 300
     preamble: str | None = None
 
-    @field_validator("api_base", "api_key", "preamble", mode="before")
+    @field_validator(
+        "api_base",
+        "api_key",
+        "preamble",
+        "pipeline",
+        "transcribe_model",
+        "author_model",
+        "verify_model",
+        mode="before",
+    )
     @classmethod
     def _blank_to_none(cls, v: object) -> object:
         """Treat blank/whitespace strings as absent so they cannot override
@@ -42,6 +56,7 @@ class JobResponse(BaseModel):
     status: JobStatus
     model: str = ""
     mode: str = "transcribe"
+    pipeline: str = "single"
     total_pages: int = 0
     created_at: datetime | None = None
     completed_at: datetime | None = None

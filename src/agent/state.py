@@ -29,6 +29,13 @@ class PipelineState(TypedDict, total=False):
     errors: Annotated[list[dict], _use_latest]
     # Editorial notes keyed by 1-based page number; never compiled into the PDF
     editorial_notes: Annotated[dict[int, str], _merge_notes]
+    # Split pipeline: faithful transcription per page
+    transcriptions: Annotated[dict[int, str], _merge_notes]
+    # Split pipeline: verification bookkeeping
+    verify_count: Annotated[int, _use_latest]
+    verify_issues: Annotated[list[dict], _use_latest]
+    verify_action: Annotated[str, _use_latest]
+    page_pdf_path: Annotated[str, _use_latest]
     output_tex_path: Annotated[str, _use_latest]
     output_pdf_path: Annotated[str, _use_latest]
 

@@ -1,9 +1,12 @@
 """LangGraph pipeline — the agentic generate→compile→fix loop."""
 
 import asyncio
+import base64
 import json
 import os
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 from langgraph.graph import END, StateGraph
@@ -40,6 +43,7 @@ async def transcribe_page(
     system_prompt: str,
     config: AgentConfig,
     context_latex: str = "",
+    model: str | None = None,
 ) -> str:
     """Send a page image to the VLM and return LaTeX source."""
     user_content: list[dict] = []
@@ -79,7 +83,7 @@ async def transcribe_page(
     ]
 
     text = await acompletion(
-        model=config.model,
+        model=model or config.model,
         messages=messages,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
@@ -87,6 +91,149 @@ async def transcribe_page(
         api_base=config.api_base,
     )
     return strip_code_fences(text)
+
+
+@retry(
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=1, max=15),
+    reraise=True,
+)
+async def author_page(
+    transcription: str,
+    system_prompt: str,
+    config: AgentConfig,
+    model: str | None = None,
+    revision_notes: str = "",
+) -> str:
+    """Author teaching material (text only) from a page transcription."""
+    user = f"Write the page from this transcription.\n\n{transcription}"
+    if revision_notes:
+        user += (
+            "\n\nThe verification pass found these defects in the previous version. "
+            "Rewrite the page fixing them and keep everything else that was correct:\n"
+            f"{revision_notes}"
+        )
+    messages: list[dict] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user},
+    ]
+    text = await acompletion(
+        model=model or config.model,
+        messages=messages,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
+        api_key=config.api_key,
+        api_base=config.api_base,
+    )
+    return strip_code_fences(text)
+
+
+def _render_page_png(pdf_path: Path, page_number: int) -> str:
+    """Render one page of a compiled PDF to a base64 PNG (empty string if it fails)."""
+    if not pdf_path.exists():
+        return ""
+    with tempfile.TemporaryDirectory() as tmp:
+        prefix = Path(tmp) / "page"
+        try:
+            subprocess.run(
+                [
+                    "pdftoppm",
+                    "-f",
+                    str(page_number),
+                    "-l",
+                    str(page_number),
+                    "-r",
+                    "110",
+                    "-png",
+                    str(pdf_path),
+                    str(prefix),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=90,
+            )
+        except (subprocess.SubprocessError, OSError) as exc:
+            logger.warning("Could not render page %d for verification: %s", page_number, exc)
+            return ""
+        pages = sorted(Path(tmp).glob("page*.png"))
+        if not pages:
+            return ""
+        return base64.b64encode(pages[0].read_bytes()).decode()
+
+
+def _parse_verify_json(text: str) -> dict:
+    """Parse the verifier's JSON defensively."""
+    cleaned = strip_code_fences(text).strip()
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end > start:
+        try:
+            data = json.loads(cleaned[start : end + 1])
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+    return {"verdict": "ok", "defects": [], "notes": cleaned[:500]}
+
+
+@retry(
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=1, max=15),
+    reraise=True,
+)
+async def verify_page(
+    original_b64: str,
+    rendered_b64: str,
+    page_latex: str,
+    transcription: str,
+    system_prompt: str,
+    config: AgentConfig,
+) -> dict:
+    """Compare the rendered page against the original and return the defect report."""
+    models = config.role_models()
+    messages: list[dict] = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "ORIGINAL handwritten page:"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{original_b64}",
+                        "detail": "high",
+                    },
+                },
+                {"type": "text", "text": "RENDERED page produced by the authored LaTeX:"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{rendered_b64}",
+                        "detail": "high",
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "AUTHORED LaTeX:\n```latex\n"
+                        f"{page_latex}\n```\n\nTRANSCRIPTION OF THE ORIGINAL:\n"
+                        f"{transcription}"
+                    ),
+                },
+            ],
+        },
+    ]
+    text = await acompletion(
+        model=models["verify"],
+        messages=messages,
+        temperature=0.0,
+        # Reasoning models spend a large share of the budget before the JSON;
+        # 2000 tokens produced empty content. The JSON itself is small.
+        max_tokens=8000,
+        api_key=config.api_key,
+        api_base=config.api_base,
+    )
+    return _parse_verify_json(text)
 
 
 @retry(
@@ -146,6 +293,11 @@ async def preprocess_node(state: PipelineState) -> dict:
         "compiler_success": False,
         "errors": [],
         "editorial_notes": {},
+        "transcriptions": {},
+        "verify_count": 0,
+        "verify_issues": [],
+        "verify_action": "advance",
+        "page_pdf_path": "",
         "output_tex_path": "",
         "output_pdf_path": "",
     }
@@ -169,23 +321,55 @@ async def generate_latex_node(state: PipelineState) -> dict:
 
     accumulated_body = state.get("accumulated_body", "")
     open_envs = open_environments(accumulated_body) if accumulated_body else []
+    models = config.role_models()
 
-    render_prompt = (
-        config.render_material_prompt
-        if config.mode == "material"
-        else config.render_transcribe_prompt
-    )
-    system_prompt = render_prompt(
-        page_number=page_idx + 1,
-        open_envs=open_envs,
-    )
-
-    generated = await transcribe_page(
-        image_b64=page_b64,
-        system_prompt=system_prompt,
-        config=config,
-        context_latex=accumulated_body,
-    )
+    transcriptions: dict[int, str] = {}
+    if config.pipeline == "split":
+        await emit(
+            ProgressEvent(
+                event_type=EventType.PAGE_GENERATING,
+                page=page_idx + 1,
+                total_pages=total,
+                message=f"Transcribing page {page_idx + 1}/{total}",
+            )
+        )
+        transcription = await transcribe_page(
+            image_b64=page_b64,
+            system_prompt=config.render_transcribe_only_prompt(page_idx + 1),
+            config=config,
+            model=models["transcribe"],
+        )
+        transcriptions = {page_idx + 1: transcription}
+        await emit(
+            ProgressEvent(
+                event_type=EventType.PAGE_GENERATING,
+                page=page_idx + 1,
+                total_pages=total,
+                message=f"Authoring page {page_idx + 1}/{total}",
+            )
+        )
+        generated = await author_page(
+            transcription=transcription,
+            system_prompt=config.render_author_prompt(page_idx + 1, open_envs, transcription),
+            config=config,
+            model=models["author"],
+        )
+    else:
+        render_prompt = (
+            config.render_material_prompt
+            if config.mode == "material"
+            else config.render_transcribe_prompt
+        )
+        system_prompt = render_prompt(
+            page_number=page_idx + 1,
+            open_envs=open_envs,
+        )
+        generated = await transcribe_page(
+            image_b64=page_b64,
+            system_prompt=system_prompt,
+            config=config,
+            context_latex=accumulated_body,
+        )
 
     latex, notes = split_editorial_notes(generated)
     if config.mode == "material" and not notes:
@@ -199,7 +383,10 @@ async def generate_latex_node(state: PipelineState) -> dict:
         "base_body": accumulated_body,
         "accumulated_body": new_body,
         "editorial_notes": {page_idx + 1: notes},
+        "transcriptions": transcriptions,
         "retry_count": 0,
+        "verify_count": 0,
+        "verify_action": "advance",
     }
 
 
@@ -251,9 +438,107 @@ async def compile_latex_node(state: PipelineState) -> dict:
 
     return {
         "compiler_success": result.success,
+        "page_pdf_path": str(result.pdf_path or "") if result.success else "",
         "errors": [
             {"line": e.line, "message": e.message, "context": e.context} for e in result.errors
         ],
+    }
+
+
+async def verify_latex_node(state: PipelineState) -> dict:
+    """Compare the rendered page with the original and regenerate on real defects."""
+    config = get_config(state)
+    page_idx = state["page_index"]
+    page_no = page_idx + 1
+    verify_count = state.get("verify_count", 0)
+    transcription = (state.get("transcriptions") or {}).get(page_no, "")
+    rendered_path = state.get("page_pdf_path", "")
+    current_notes = (state.get("editorial_notes") or {}).get(page_no, "")
+
+    if not transcription or not rendered_path:
+        return {"verify_action": "advance"}
+
+    await emit(
+        ProgressEvent(
+            event_type=EventType.PAGE_COMPILED_OK,
+            page=page_no,
+            total_pages=len(state["pages"]),
+            message=f"Verifying page {page_no} against the original",
+        )
+    )
+
+    rendered_b64 = await asyncio.to_thread(_render_page_png, Path(rendered_path), page_no)
+    if not rendered_b64:
+        return {"verify_action": "advance"}
+
+    try:
+        report = await verify_page(
+            original_b64=state["pages"][page_idx],
+            rendered_b64=rendered_b64,
+            page_latex=state["current_page_latex"],
+            transcription=transcription,
+            system_prompt=config.render_verify_prompt(),
+            config=config,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Verification is advisory: never fail a job because the checker failed.
+        logger.warning("Verification unavailable for page %d: %s", page_no, exc)
+        return {
+            "verify_action": "advance",
+            "editorial_notes": {
+                page_no: (
+                    current_notes
+                    + f"\n% verify round {verify_count + 1}: unavailable ({exc})"
+                ).strip()
+            },
+        }
+    defects = [d for d in (report.get("defects") or []) if d]
+    verdict = report.get("verdict")
+
+    if verdict == "regen" and defects and verify_count < config.verify_rounds:
+        defect_text = "\n".join(
+            f"- {d.get('page_element', '?')}: {d.get('problem', '')} (fix: {d.get('fix', '')})"
+            if isinstance(d, dict)
+            else f"- {d}"
+            for d in defects
+        )
+        base_body = state.get("base_body", "")
+        open_envs = open_environments(base_body) if base_body else []
+        regenerated = await author_page(
+            transcription=transcription,
+            system_prompt=config.render_author_prompt(page_no, open_envs, transcription),
+            config=config,
+            model=config.role_models()["author"],
+            revision_notes=defect_text,
+        )
+        latex, notes = split_editorial_notes(regenerated)
+        joined_notes = "\n".join(part for part in (current_notes, notes) if part)
+        if not joined_notes:
+            joined_notes = NO_NOTES_PLACEHOLDER
+        latex = strip_preamble_from_body(latex)
+        new_body = prepend_page_marker(page_no, latex, base_body)
+        verify_line = f"% verify round {verify_count + 1}: {len(defects)} defect(s) -> regenerated"
+        logger.info(
+            "Page %d verification found %d defect(s); regenerating",
+            page_no,
+            len(defects),
+        )
+        return {
+            "current_page_latex": latex,
+            "accumulated_body": new_body,
+            "editorial_notes": {page_no: joined_notes + "\n" + verify_line},
+            "verify_count": verify_count + 1,
+            "verify_issues": defects,
+            "verify_action": "recompile",
+        }
+
+    summary = "no defects" if verdict == "ok" else f"{len(defects)} defect(s) remain"
+    return {
+        "verify_action": "advance",
+        "verify_issues": defects,
+        "editorial_notes": {
+            page_no: (current_notes + f"\n% verify round {verify_count + 1}: {summary}").strip()
+        },
     }
 
 
@@ -441,6 +726,9 @@ async def upload_page_images(pages_dir: Path, api_key: str | None) -> dict[str, 
 
 def route_after_compile(state: PipelineState) -> str:
     if state.get("compiler_success"):
+        config = get_config(state)
+        if config.pipeline == "split" and config.verify_rounds > 0:
+            return "verify"
         return "advance"
     config = get_config(state)
     if state.get("retry_count", 0) >= config.max_retries:
@@ -450,6 +738,12 @@ def route_after_compile(state: PipelineState) -> str:
         )
         return "advance"  # give up on this page, move on
     return "fix"
+
+
+def route_after_verify(state: PipelineState) -> str:
+    if state.get("verify_action") == "recompile":
+        return "recompile"
+    return "advance"
 
 
 def route_after_advance(state: PipelineState) -> str:
@@ -470,6 +764,7 @@ def build_graph() -> StateGraph:
     graph.add_node("generate_latex", generate_latex_node)
     graph.add_node("compile_latex", compile_latex_node)
     graph.add_node("fix_latex", fix_latex_node)
+    graph.add_node("verify_latex", verify_latex_node)
     graph.add_node("advance_page", advance_page_node)
     graph.add_node("finalize", finalize_node)
 
@@ -482,11 +777,21 @@ def build_graph() -> StateGraph:
         route_after_compile,
         {
             "fix": "fix_latex",
+            "verify": "verify_latex",
             "advance": "advance_page",
         },
     )
 
     graph.add_edge("fix_latex", "compile_latex")
+
+    graph.add_conditional_edges(
+        "verify_latex",
+        route_after_verify,
+        {
+            "recompile": "compile_latex",
+            "advance": "advance_page",
+        },
+    )
 
     graph.add_conditional_edges(
         "advance_page",

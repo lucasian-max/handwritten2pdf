@@ -49,6 +49,7 @@ export interface JobResponse {
   has_pdf: boolean;
   has_tex: boolean;
   mode?: ConversionMode;
+  pipeline?: "single" | "split";
   cdn_urls?: Record<string, string> | null;
   editorial_notes?: string | null;
 }

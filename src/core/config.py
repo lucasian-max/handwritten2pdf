@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # Conversion mode: faithful transcription, or student-facing material
     mode: Literal["transcribe", "material"] = "transcribe"
 
+    # Pipeline: "single" (one vision call per page) or "split"
+    # (transcribe -> author -> verify, one model per role)
+    pipeline: Literal["single", "split"] = "single"
+    transcribe_model: str | None = None  # defaults to `model`
+    author_model: str | None = None  # defaults to `model`
+    verify_model: str | None = None  # defaults to transcribe_model
+    verify_rounds: int = 1  # split pipeline only; 0 disables verification
+
     # Best-effort page-image hosting
     cdn_api_key: str | None = None
 

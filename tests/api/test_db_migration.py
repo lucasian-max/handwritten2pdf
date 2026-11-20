@@ -44,6 +44,7 @@ def test_legacy_db_gains_mode_column(tmp_path):
     conn = sqlite3.connect(db_path)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(job)")}
     assert "mode" in columns
+    assert "pipeline" in columns
     (mode,) = conn.execute("SELECT mode FROM job WHERE id = 'legacy1'").fetchone()
     assert mode == "transcribe"
     conn.close()

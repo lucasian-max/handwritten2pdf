@@ -14,10 +14,10 @@ engine = create_async_engine(f"sqlite+aiosqlite:///{DB_PATH}", echo=False)
 
 
 def _ensure_job_mode_column(conn) -> None:  # noqa: ANN001
-    """Add ``job.mode`` to databases created before the column existed.
+    """Add columns introduced after the first schema (mode, pipeline).
 
     SQLModel's ``create_all`` never migrates, so an existing database would
-    break on every query touching ``mode`` after this column was introduced.
+    break on every query touching these columns after they were introduced.
     """
     inspector = inspect(conn)
     if "job" not in inspector.get_table_names():
@@ -25,6 +25,8 @@ def _ensure_job_mode_column(conn) -> None:  # noqa: ANN001
     columns = {c["name"] for c in inspector.get_columns("job")}
     if "mode" not in columns:
         conn.execute(text("ALTER TABLE job ADD COLUMN mode VARCHAR NOT NULL DEFAULT 'transcribe'"))
+    if "pipeline" not in columns:
+        conn.execute(text("ALTER TABLE job ADD COLUMN pipeline VARCHAR NOT NULL DEFAULT 'single'"))
 
 
 async def init_db() -> None:

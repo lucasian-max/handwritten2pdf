@@ -141,6 +141,7 @@ export function HomePage() {
         api_key: settings.apiKey || undefined,
         api_base: getEffectiveApiBase(settings),
         mode: settings.mode,
+        pipeline: settings.pipeline,
         // Only a genuinely customized preamble is sent; otherwise the
         // backend uses its own (kept current) default.
         preamble:

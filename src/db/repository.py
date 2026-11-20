@@ -21,12 +21,14 @@ class JobRepository:
         model: str,
         filenames: list[str],
         mode: str = "transcribe",
+        pipeline: str = "single",
     ) -> Job:
         job = Job(
             id=job_id,
             status=JobStatus.PENDING,
             model=model,
             mode=mode,
+            pipeline=pipeline,
             input_filenames=json.dumps(filenames),
         )
         self._session.add(job)

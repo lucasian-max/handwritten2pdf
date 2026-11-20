@@ -54,6 +54,25 @@ const MODE_OPTIONS: {
   },
 ];
 
+const PIPELINE_OPTIONS: {
+  value: "single" | "split";
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "split",
+    label: "Split roles",
+    description:
+      "One model reads the page, another writes the notes, a third checks the result against the original. Best quality.",
+  },
+  {
+    value: "single",
+    label: "Single model",
+    description:
+      "One vision model does everything. Faster and cheaper, less careful.",
+  },
+];
+
 function Section({
   title,
   description,
@@ -279,6 +298,47 @@ export function SettingsPage() {
                       value={option.value}
                       checked={active}
                       onChange={() => update({ mode: option.value })}
+                      className="sr-only"
+                    />
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        </Section>
+
+        <Section
+          title="Pipeline"
+          description="Which models do the work. Split roles use one model to read the page, another to write it, and a third to check the result against the original."
+        >
+          <fieldset>
+            <legend className="sr-only">Pipeline</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {PIPELINE_OPTIONS.map((option) => {
+                const active = settings.pipeline === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "cursor-pointer border px-3 py-3 transition-colors",
+                      active
+                        ? "border-ink bg-ink/[0.04]"
+                        : "border-border hover:border-ink/40",
+                      "has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="pipeline"
+                      value={option.value}
+                      checked={active}
+                      onChange={() => update({ pipeline: option.value })}
                       className="sr-only"
                     />
                     <span className="block text-sm font-medium">

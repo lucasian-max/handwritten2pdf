@@ -89,6 +89,7 @@ export interface AppSettings {
   preambleIsCustom: boolean;
   apiBase: string;
   mode: ConversionMode;
+  pipeline: "single" | "split";
 }
 
 const DEFAULTS: AppSettings = {
@@ -100,6 +101,7 @@ const DEFAULTS: AppSettings = {
   preambleIsCustom: false,
   apiBase: DEFAULT_PRESET.apiBase,
   mode: "material",
+  pipeline: "split",
 };
 
 /**
@@ -129,6 +131,7 @@ export function loadSettings(): AppSettings {
       // Installations saved before base URLs existed keep the server default.
       apiBase: stored.apiBase ?? "",
       mode: stored.mode === "transcribe" ? "transcribe" : "material",
+      pipeline: stored.pipeline === "single" ? "single" : "split",
       preamble: stalePreamble ? "" : storedPreamble,
       preambleIsCustom: !stalePreamble && Boolean(stored.preambleIsCustom),
     };

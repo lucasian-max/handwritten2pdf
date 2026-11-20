@@ -387,3 +387,133 @@ class TestPipelineEndToEnd:
         mock_transcribe.assert_called_once()
         # compile is called in compile_latex_node + finalize_node = 2 times
         assert mock_compile.call_count == 2
+
+
+class TestSplitPipeline:
+    @pytest.mark.asyncio
+    async def test_split_transcribes_then_authors(self, tmp_path):
+        config = AgentConfig(
+            output_dir=tmp_path / "output",
+            max_retries=1,
+            mode="material",
+            pipeline="split",
+            verify_rounds=0,
+        )
+        img = _make_image(tmp_path)
+        with (
+            patch("agent.graph.transcribe_page", new_callable=AsyncMock) as mock_tr,
+            patch("agent.graph.author_page", new_callable=AsyncMock) as mock_au,
+            patch("agent.graph.compile_latex") as mock_compile,
+        ):
+            mock_tr.return_value = "TITLE: Gauss\nEQUATION: q/(4 pi eps_0 r^2)"
+            mock_au.return_value = f"Body text.\n\n{NOTES_MARKER}\n{NOTES_LINES}"
+            mock_compile.return_value = CompilerResult(
+                success=True, pdf_path=None, errors=[], log_output=""
+            )
+            result = await run_pipeline([img], config)
+
+        # Split mode uses the faithful transcription prompt...
+        assert "transcription engine" in mock_tr.call_args.kwargs["system_prompt"]
+        # ...and hands the transcription to the authoring stage.
+        assert "TITLE: Gauss" in mock_au.call_args.kwargs["system_prompt"]
+        assert mock_au.call_args.kwargs["transcription"].startswith("TITLE: Gauss")
+        assert result["accumulated_body"].endswith("Body text.")
+        notes = (config.output_dir / "editorial-notes.md").read_text(encoding="utf-8")
+        assert "corrected a sign error" in notes
+
+    def test_role_models_fall_back_to_model(self):
+        config = AgentConfig(model="m")
+        assert config.role_models() == {"transcribe": "m", "author": "m", "verify": "m"}
+
+    def test_role_models_use_overrides(self):
+        config = AgentConfig(
+            model="m",
+            transcribe_model="tr",
+            author_model="au",
+            verify_model="ve",
+        )
+        assert config.role_models() == {"transcribe": "tr", "author": "au", "verify": "ve"}
+
+
+class TestVerifyNode:
+    @pytest.mark.asyncio
+    async def test_defects_trigger_regeneration(self, tmp_path):
+        from agent.graph import verify_latex_node
+
+        config = AgentConfig(
+            output_dir=tmp_path / "output",
+            mode="material",
+            pipeline="split",
+            verify_rounds=1,
+        )
+        state = {
+            "pages": ["orig-b64"],
+            "config_dict": config.to_state_dict(),
+            "page_index": 0,
+            "transcriptions": {1: "ORIGINAL TRANSCRIPT"},
+            "page_pdf_path": "/tmp/fake.pdf",
+            "current_page_latex": "Wrong body.",
+            "editorial_notes": {1: "% first pass"},
+            "base_body": "",
+            "verify_count": 0,
+        }
+        report = {
+            "verdict": "regen",
+            "defects": [{"page_element": "fig 1", "problem": "wrong curve", "fix": "redraw"}],
+            "notes": "x",
+        }
+        with (
+            patch("agent.graph._render_page_png", return_value="render-b64"),
+            patch("agent.graph.verify_page", new_callable=AsyncMock) as mock_verify,
+            patch("agent.graph.author_page", new_callable=AsyncMock) as mock_author,
+        ):
+            mock_verify.return_value = report
+            mock_author.return_value = "Fixed body."
+            out = await verify_latex_node(state)
+
+        assert out["verify_action"] == "recompile"
+        assert out["verify_count"] == 1
+        assert out["current_page_latex"] == "Fixed body."
+        assert "wrong curve" in mock_author.call_args.kwargs["revision_notes"]
+        assert "verify round 1" in out["editorial_notes"][1]
+        assert "% first pass" in out["editorial_notes"][1]
+
+    @pytest.mark.asyncio
+    async def test_ok_advances_without_regeneration(self, tmp_path):
+        from agent.graph import verify_latex_node
+
+        config = AgentConfig(output_dir=tmp_path / "output", mode="material", pipeline="split")
+        state = {
+            "pages": ["orig-b64"],
+            "config_dict": config.to_state_dict(),
+            "page_index": 0,
+            "transcriptions": {1: "T"},
+            "page_pdf_path": "/tmp/fake.pdf",
+            "current_page_latex": "Good body.",
+            "editorial_notes": {1: "% notes"},
+            "base_body": "",
+            "verify_count": 0,
+        }
+        with (
+            patch("agent.graph._render_page_png", return_value="render-b64"),
+            patch("agent.graph.verify_page", new_callable=AsyncMock) as mock_verify,
+            patch("agent.graph.author_page", new_callable=AsyncMock) as mock_author,
+        ):
+            mock_verify.return_value = {"verdict": "ok", "defects": [], "notes": ""}
+            out = await verify_latex_node(state)
+
+        assert out["verify_action"] == "advance"
+        mock_author.assert_not_awaited()
+        assert "no defects" in out["editorial_notes"][1]
+
+    def test_routing_split_goes_to_verify(self):
+        config = AgentConfig(pipeline="split", verify_rounds=1).to_state_dict()
+        assert route_after_compile({"compiler_success": True, "config_dict": config}) == "verify"
+
+    def test_routing_verify_rounds_zero_advances(self):
+        config = AgentConfig(pipeline="split", verify_rounds=0).to_state_dict()
+        assert route_after_compile({"compiler_success": True, "config_dict": config}) == "advance"
+
+    def test_routing_single_pipeline_unchanged(self):
+        config = AgentConfig(pipeline="single").to_state_dict()
+        assert route_after_compile({"compiler_success": True, "config_dict": config}) == "advance"

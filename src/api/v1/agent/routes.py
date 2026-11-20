@@ -151,6 +151,11 @@ async def create_job(
         api_base=req.api_base,
         api_key=req.api_key,
         mode=req.mode,
+        pipeline=req.pipeline,
+        transcribe_model=req.transcribe_model,
+        author_model=req.author_model,
+        verify_model=req.verify_model,
+        verify_rounds=req.verify_rounds,
         max_retries=req.max_retries,
         dpi=req.dpi,
         preamble=req.preamble,
@@ -161,6 +166,7 @@ async def create_job(
         model=req.model,
         filenames=filenames,
         mode=agent_config.mode,
+        pipeline=agent_config.pipeline,
     )
 
     # Create event store
@@ -175,6 +181,7 @@ async def create_job(
         status=job.status,
         model=job.model,
         mode=job.mode,
+        pipeline=job.pipeline,
         created_at=job.created_at,
         input_filenames=filenames,
     )
@@ -246,6 +253,7 @@ def _build_job_response(job, include_artifacts: bool = False) -> JobResponse:
         status=job.status,
         model=job.model,
         mode=job.mode,
+        pipeline=job.pipeline,
         total_pages=job.total_pages,
         created_at=job.created_at,
         completed_at=job.completed_at,

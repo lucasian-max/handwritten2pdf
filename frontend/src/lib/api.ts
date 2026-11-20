@@ -27,6 +27,7 @@ export async function createJob(
     api_key?: string;
     api_base?: string | null;
     mode?: ConversionMode;
+    pipeline?: "single" | "split";
     max_retries?: number;
     dpi?: number;
     preamble?: string;

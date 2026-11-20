@@ -138,6 +138,34 @@ DeepSeek v4.1 Flash is the default over the faster Gemini preview for stability:
 preview model can disappear from the proxy at any time. Note that `z-ai/glm-5.3`
 (non-flash) is text-only on the proxy and cannot accept page images.
 
+### Pipelines
+
+- **Single** (upstream behavior): one vision model reads the page and writes the result in
+  one call.
+- **Split** (`NOTES2LATEX_PIPELINE=split`): three roles, each playing to a different
+  strength —
+  1. **transcribe** (vision) → a faithful, complete transcription with figure
+     descriptions and explicit uncertainty markers;
+  2. **author** (text) → student-facing LaTeX from the transcription;
+  3. **verify** (vision) → compares the *rendered* page against the *original* and
+     regenerates once if it finds wrong math, missing content, or wrong figures.
+
+  Verification is advisory: a checker failure never fails the job; it is recorded in the
+  editorial notes instead. One round by default (`NOTES2LATEX_VERIFY_ROUNDS`).
+
+```sh
+NOTES2LATEX_PIPELINE=split
+NOTES2LATEX_TRANSCRIBE_MODEL=openai/deepseek/deepseek-v4.1-flash
+NOTES2LATEX_AUTHOR_MODEL=openai/anthropic/claude-opus-5.5
+NOTES2LATEX_VERIFY_MODEL=openai/deepseek/deepseek-v4.1-flash
+```
+
+These defaults came from a controlled comparison: DeepSeek v4.1 Flash read both benchmark
+pages perfectly; on the same transcription, Opus 5.5's authored page scored 5/5/5 from an
+independent judge against DeepSeek's 4/4/4 (fidelity, pedagogy, layout). Role models are
+cleared automatically when a request supplies its own endpoint, so a custom provider falls
+back to its single requested model.
+
 ### Diagram kit
 
 The locked preamble ships a lean, clash-tested TikZ kit: **pgfplots** (with

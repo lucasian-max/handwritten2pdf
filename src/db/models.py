@@ -18,6 +18,7 @@ class Job(SQLModel, table=True):
     status: JobStatus = Field(default=JobStatus.PENDING)
     model: str = Field(default="")
     mode: str = Field(default="transcribe")
+    pipeline: str = Field(default="single")
     total_pages: int = Field(default=0)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = Field(default=None)
