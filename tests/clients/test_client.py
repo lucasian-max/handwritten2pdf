@@ -71,3 +71,25 @@ async def test_truncated_output_raises():
         mock.return_value = _response("\\section*{Cut off \\emph", finish_reason="length")
         with pytest.raises(TruncatedResponse):
             await acompletion("m", [], 0.1, 100)
+
+
+@pytest.mark.asyncio
+async def test_spending_limit_message_is_friendly():
+    class APIError(Exception):
+        pass
+
+    with patch("clients.llm.client.litellm.acompletion", new_callable=AsyncMock) as mock:
+        mock.side_effect = APIError("Error code: 402 - Spending limit reached")
+        with pytest.raises(RuntimeError, match="out of credits"):
+            await acompletion("m", [], 0.1, 100)
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_message_is_friendly():
+    class APIError(Exception):
+        pass
+
+    with patch("clients.llm.client.litellm.acompletion", new_callable=AsyncMock) as mock:
+        mock.side_effect = APIError("Error code: 429 - rate limit")
+        with pytest.raises(RuntimeError, match="rate-limiting"):
+            await acompletion("m", [], 0.1, 100)

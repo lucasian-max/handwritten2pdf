@@ -32,7 +32,22 @@ async def acompletion(
     if api_base is not None:
         kwargs["api_base"] = api_base
 
-    response = await litellm.acompletion(**kwargs)
+    try:
+        response = await litellm.acompletion(**kwargs)
+    except Exception as exc:
+        message = str(exc)
+        if "Spending limit" in message or "spending limit" in message:
+            raise RuntimeError(
+                "The AI proxy is out of credits right now (HTTP 402). "
+                "Wait for the limit to reset, ask in #hackclub-ai, or switch "
+                "provider in Settings."
+            ) from exc
+        if "429" in message or "rate limit" in message.lower():
+            raise RuntimeError(
+                "The AI provider is rate-limiting requests (HTTP 429). "
+                "Try again in a minute or switch provider in Settings."
+            ) from exc
+        raise
     choice = response.choices[0]
     content = choice.message.content
     finish = getattr(choice, "finish_reason", None)
