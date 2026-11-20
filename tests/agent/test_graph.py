@@ -544,3 +544,50 @@ class TestAuthorFallback:
 
         assert out == "body"
         assert calls == ["primary", "fallback"]
+
+
+class TestStructuralValidation:
+    def test_complete_body_passes(self):
+        from agent.utils.latex_check import looks_complete
+
+        assert looks_complete("Text $x^2$ and \\begin{align} a &= b \\end{align}")
+        assert looks_complete("\\begin{center}\\begin{tikzpicture}\\end{tikzpicture}\\end{center}")
+
+    def test_truncated_body_fails(self):
+        from agent.utils.latex_check import looks_complete
+
+        assert not looks_complete("Text \\emph{cut off")
+        assert not looks_complete("\\begin{align} a &= b")
+        assert not looks_complete("Unclosed $x")
+        assert not looks_complete("")
+
+    def test_comments_ignored(self):
+        from agent.utils.latex_check import looks_complete
+
+        assert looks_complete("Body.\n% a comment with { unbalanced brace")
+
+    @pytest.mark.asyncio
+    async def test_author_retries_when_provider_lies_about_stop(self):
+        from agent.graph import author_page
+
+        config = AgentConfig(model="m")
+        calls = []
+
+        async def fake(model, **kwargs):
+            calls.append(model)
+            if len(calls) == 1:
+                return "Broken \\emph{cut"  # finish_reason='stop' but truncated
+            return "Complete body."
+
+        with patch("agent.graph.acompletion", side_effect=fake):
+            out = await author_page("T", "S", config)
+
+        assert out == "Complete body."
+        assert len(calls) == 2  # retried with the concision hint
+
+    def test_model_chain_includes_fallbacks(self):
+        from agent.graph import _model_chain
+
+        config = AgentConfig(model="m", fallback_models=["f1", "f2"])
+        assert _model_chain(config) == ["m", "f1", "f2"]
+        assert _model_chain(config, "other") == ["other", "f1", "f2"]

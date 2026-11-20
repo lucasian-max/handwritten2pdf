@@ -29,6 +29,7 @@ _SERIALIZABLE_FIELDS = frozenset(
         "author_model",
         "verify_model",
         "verify_rounds",
+        "fallback_models",
         "dpi",
         "latex_engine",
         "compile_timeout",
@@ -66,6 +67,9 @@ class AgentConfig:
     author_model: str | None = None  # defaults to `model`
     verify_model: str | None = None  # defaults to transcribe_model
     verify_rounds: int = 1  # split pipeline only; 0 disables verification
+    # Extra models tried, in order, when a role model is unavailable
+    # (provider 402/429/5xx) or returns visibly truncated output.
+    fallback_models: list[str] = field(default_factory=list)
 
     # Pipeline settings
     max_retries: int = 3
@@ -123,6 +127,9 @@ class AgentConfig:
             "author_model": settings.author_model,
             "verify_model": settings.verify_model,
             "verify_rounds": settings.verify_rounds,
+            "fallback_models": [
+                m.strip() for m in settings.fallback_models.split(",") if m.strip()
+            ],
             "cdn_api_key": settings.cdn_api_key,
             "output_dir": settings.output_dir,
             "dpi": settings.dpi,
@@ -141,6 +148,7 @@ class AgentConfig:
             base["transcribe_model"] = None
             base["author_model"] = None
             base["verify_model"] = None
+            base["fallback_models"] = []
         return cls(**base)
 
     def render_transcribe_prompt(self, page_number: int, open_envs: list[str]) -> str:

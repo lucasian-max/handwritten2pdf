@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     author_model: str | None = None  # defaults to `model`
     verify_model: str | None = None  # defaults to transcribe_model
     verify_rounds: int = 1  # split pipeline only; 0 disables verification
+    fallback_models: str = ""  # comma-separated LiteLLM ids tried when a role fails
 
     # Best-effort page-image hosting
     cdn_api_key: str | None = None

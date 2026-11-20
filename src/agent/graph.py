@@ -16,6 +16,7 @@ from agent.config import AgentConfig
 from agent.progress import EventType, ProgressCallback, ProgressEvent, emit, set_progress_callback
 from agent.state import PipelineState, get_config
 from agent.utils.editorial_notes import NO_NOTES_PLACEHOLDER, split_editorial_notes
+from agent.utils.latex_check import looks_complete
 from agent.utils.page_markers import prepend_page_marker
 from agent.utils.text import strip_code_fences
 from clients.cdn.client import upload_file
@@ -31,6 +32,15 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Domain LLM functions
 # ---------------------------------------------------------------------------
+
+
+def _model_chain(config: AgentConfig, primary: str | None = None) -> list[str]:
+    """Primary model followed by the configured fallbacks, deduplicated."""
+    chain: list[str] = []
+    for model in [primary or config.model, *config.fallback_models]:
+        if model and model not in chain:
+            chain.append(model)
+    return chain
 
 
 @retry(
@@ -82,15 +92,27 @@ async def transcribe_page(
         {"role": "user", "content": user_content},
     ]
 
-    text = await acompletion(
-        model=model or config.model,
-        messages=messages,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-        api_key=config.api_key,
-        api_base=config.api_base,
-    )
-    return strip_code_fences(text)
+    last_error: Exception | None = None
+    for candidate in _model_chain(config, model):
+        try:
+            text = await acompletion(
+                model=candidate,
+                messages=messages,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                api_key=config.api_key,
+                api_base=config.api_base,
+            )
+            return strip_code_fences(text)
+        except TruncatedResponse as exc:
+            last_error = exc
+            continue
+        except Exception as exc:  # noqa: BLE001 - provider outage: try the next model
+            last_error = exc
+            logger.warning("Transcription model %s failed: %s", candidate, exc)
+            continue
+    assert last_error is not None
+    raise last_error
 
 
 async def author_page(
@@ -115,8 +137,8 @@ async def author_page(
             f"{revision_notes}"
         )
     primary = model or config.model
-    candidates = [primary]
-    if fallback_model and fallback_model != primary:
+    candidates = _model_chain(config, primary)
+    if fallback_model and fallback_model not in candidates:
         candidates.append(fallback_model)
 
     last_error: Exception | None = None
@@ -141,9 +163,16 @@ async def author_page(
                     api_key=config.api_key,
                     api_base=config.api_base,
                 )
+                body = strip_code_fences(text)
+                if not looks_complete(body):
+                    # Provider reported 'stop' but the body is visibly cut off.
+                    last_error = TruncatedResponse(
+                        f"Incomplete LaTeX body from {candidate} (unbalanced structure)"
+                    )
+                    continue
                 if candidate != primary:
                     logger.warning("Authoring fell back to %s: %s", candidate, last_error)
-                return strip_code_fences(text)
+                return body
             except TruncatedResponse as exc:
                 last_error = exc
                 continue
@@ -293,15 +322,23 @@ async def fix_latex(
         },
     ]
 
-    text = await acompletion(
-        model=config.role_models()["transcribe"],
-        messages=messages,
-        temperature=0.0,
-        max_tokens=config.max_tokens,
-        api_key=config.api_key,
-        api_base=config.api_base,
-    )
-    return strip_code_fences(text)
+    last_error: Exception | None = None
+    for candidate in _model_chain(config, config.role_models()["transcribe"]):
+        try:
+            text = await acompletion(
+                model=candidate,
+                messages=messages,
+                temperature=0.0,
+                max_tokens=config.max_tokens,
+                api_key=config.api_key,
+                api_base=config.api_base,
+            )
+            return strip_code_fences(text)
+        except (TruncatedResponse, Exception) as exc:  # noqa: BLE001
+            last_error = exc
+            continue
+    assert last_error is not None
+    raise last_error
 
 
 # ---------------------------------------------------------------------------
