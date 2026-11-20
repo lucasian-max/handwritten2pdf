@@ -163,7 +163,7 @@ async def create_job(
     )
     job = await repo.create(
         job_id=job_id,
-        model=req.model,
+        model=agent_config.model,
         filenames=filenames,
         mode=agent_config.mode,
         pipeline=agent_config.pipeline,

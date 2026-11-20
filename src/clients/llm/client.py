@@ -8,6 +8,10 @@ litellm.suppress_debug_info = True
 logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 
+class TruncatedResponse(ValueError):
+    """The provider stopped the model at its token cap; the content is partial."""
+
+
 async def acompletion(
     model: str,
     messages: list[dict],
@@ -29,12 +33,18 @@ async def acompletion(
         kwargs["api_base"] = api_base
 
     response = await litellm.acompletion(**kwargs)
-    content = response.choices[0].message.content
+    choice = response.choices[0]
+    content = choice.message.content
+    finish = getattr(choice, "finish_reason", None)
     if not content or not content.strip():
         # Some providers (notably reasoning models on long pages) return an empty
         # content field instead of raising. Treat it as a retriable failure so the
         # tenacity retry in the graph gets another attempt instead of crashing
         # downstream on None.strip().
-        finish = response.choices[0].finish_reason
         raise ValueError(f"Model returned empty content (finish_reason={finish!r}, model={model})")
+    if finish == "length":
+        # Partial content: a LaTeX body cut mid-command compiles to nothing.
+        raise TruncatedResponse(
+            f"Model output hit the token cap (finish_reason='length', model={model})"
+        )
     return content

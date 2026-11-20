@@ -60,3 +60,14 @@ async def test_api_base_forwarded():
     kwargs = mock.call_args.kwargs
     assert kwargs["api_base"] == "https://proxy.example/v1"
     assert kwargs["api_key"] == "k"
+
+
+@pytest.mark.asyncio
+async def test_truncated_output_raises():
+    # Partial content at the token cap must not be treated as a valid page.
+    from clients.llm.client import TruncatedResponse
+
+    with patch("clients.llm.client.litellm.acompletion", new_callable=AsyncMock) as mock:
+        mock.return_value = _response("\\section*{Cut off \\emph", finish_reason="length")
+        with pytest.raises(TruncatedResponse):
+            await acompletion("m", [], 0.1, 100)

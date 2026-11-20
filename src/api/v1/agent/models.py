@@ -9,7 +9,7 @@ from db.models import JobStatus
 
 
 class ConvertRequest(BaseModel):
-    model: str = "openrouter/google/gemini-3-flash-preview"
+    model: str | None = None  # None keeps the server-configured model
     api_base: str | None = None
     api_key: str | None = None
     mode: Literal["transcribe", "material"] | None = None

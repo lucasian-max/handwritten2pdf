@@ -19,7 +19,7 @@ from agent.utils.editorial_notes import NO_NOTES_PLACEHOLDER, split_editorial_no
 from agent.utils.page_markers import prepend_page_marker
 from agent.utils.text import strip_code_fences
 from clients.cdn.client import upload_file
-from clients.llm.client import acompletion
+from clients.llm.client import TruncatedResponse, acompletion
 from compiler.compiler import compile_latex
 from core.logger import get_logger
 from document.preprocessing import load_pages
@@ -93,11 +93,6 @@ async def transcribe_page(
     return strip_code_fences(text)
 
 
-@retry(
-    stop=stop_after_attempt(2),
-    wait=wait_exponential(multiplier=1, min=1, max=15),
-    reraise=True,
-)
 async def author_page(
     transcription: str,
     system_prompt: str,
@@ -105,27 +100,44 @@ async def author_page(
     model: str | None = None,
     revision_notes: str = "",
 ) -> str:
-    """Author teaching material (text only) from a page transcription."""
-    user = f"Write the page from this transcription.\n\n{transcription}"
+    """Author teaching material (text only) from a page transcription.
+
+    Retries once with a concision hint if the provider truncates the output at
+    its token cap (a cut LaTeX body compiles to nothing).
+    """
+    base_user = f"Write the page from this transcription.\n\n{transcription}"
     if revision_notes:
-        user += (
+        base_user += (
             "\n\nThe verification pass found these defects in the previous version. "
             "Rewrite the page fixing them and keep everything else that was correct:\n"
             f"{revision_notes}"
         )
-    messages: list[dict] = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user},
-    ]
-    text = await acompletion(
-        model=model or config.model,
-        messages=messages,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-        api_key=config.api_key,
-        api_base=config.api_base,
-    )
-    return strip_code_fences(text)
+    last_error: Exception | None = None
+    for attempt in range(2):
+        user = base_user
+        if attempt:
+            user += (
+                "\n\nIMPORTANT: the previous attempt was cut off at the token limit. "
+                "Produce a COMPLETE page. Keep it within about two to three typeset "
+                "pages; drop optional elaboration, never content."
+            )
+        try:
+            text = await acompletion(
+                model=model or config.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user},
+                ],
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                api_key=config.api_key,
+                api_base=config.api_base,
+            )
+            return strip_code_fences(text)
+        except TruncatedResponse as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
 
 
 def _render_page_png(pdf_path: Path, page_number: int) -> str:
@@ -228,8 +240,8 @@ async def verify_page(
         messages=messages,
         temperature=0.0,
         # Reasoning models spend a large share of the budget before the JSON;
-        # 2000 tokens produced empty content. The JSON itself is small.
-        max_tokens=8000,
+        # 2000 tokens produced empty content; even 8000 can be eaten.
+        max_tokens=16000,
         api_key=config.api_key,
         api_base=config.api_base,
     )
@@ -268,7 +280,7 @@ async def fix_latex(
     ]
 
     text = await acompletion(
-        model=config.model,
+        model=config.role_models()["transcribe"],
         messages=messages,
         temperature=0.0,
         max_tokens=config.max_tokens,
@@ -487,8 +499,7 @@ async def verify_latex_node(state: PipelineState) -> dict:
             "verify_action": "advance",
             "editorial_notes": {
                 page_no: (
-                    current_notes
-                    + f"\n% verify round {verify_count + 1}: unavailable ({exc})"
+                    current_notes + f"\n% verify round {verify_count + 1}: unavailable ({exc})"
                 ).strip()
             },
         }
