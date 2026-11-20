@@ -34,7 +34,8 @@ The preamble is already written and locked — you cannot modify it. Below is a 
 
 amsmath, amssymb, amsthm, mathtools, thmtools, cancel, mathrsfs, physics, siunitx, tikz, tikz-cd, pgfplots, algorithm2e, listings, geometry, enumitem, hyperref, tcolorbox.
 
-TikZ libraries loaded: `decorations.pathreplacing`, `arrows.meta`, `calc`.
+TikZ libraries loaded: `decorations.pathreplacing`, `decorations.markings`,
+`arrows.meta`, `calc`, `positioning`.
 
 ### Theorem-like Environments
 

@@ -121,6 +121,22 @@ read on a phone as well as in print.
   once.
 - **Close dense sections with a summary table** (object, domain, range, symmetry, key
   identity) so the page can be revised from one glance.
+- **Build relation diagrams from named nodes and styles, not raw coordinates.** For
+  boxes, stages, flow, or concept diagrams, define one style per role and place nodes
+  relative to each other with the `positioning` library (`above=of`, `right=of`); then
+  connect node anchors (`(a.south) -- (b.north)`). Raw coordinates are for plots and
+  geometry, not for boxes and arrows. Example:
+
+  ```latex
+  \tikzset{stage/.style={rectangle, draw=ink!60, fill=ink!5, very thick,
+                         minimum size=6mm}}
+  \node[stage] (a) {$f$};
+  \node[stage, right=of a] (b) {$f^{-1}$};
+  \draw[->] (a) -- (b);
+  ```
+- **Arrows that must sit mid-path** (field lines, direction of travel) use
+  `decoration={markings, mark=at position .5 with {\arrow{Latex}}}` with the
+  `decorations.markings` library rather than hand-placed coordinates.
 - **Respect the source's structure** — its date, outline, and section order — while
   making spacing, notation, and numbering internally consistent.
 
@@ -129,7 +145,8 @@ read on a phone as well as in print.
 The preamble is locked — you cannot modify it. Available packages: amsmath, amssymb,
 amsthm, mathtools, thmtools, cancel, mathrsfs, physics, siunitx, tikz, tikz-cd, pgfplots,
 algorithm2e, listings, geometry, enumitem, hyperref, tcolorbox. TikZ libraries:
-`decorations.pathreplacing`, `arrows.meta`, `calc`. Pre-defined theorem-like
+`decorations.pathreplacing`, `decorations.markings`, `arrows.meta`, `calc`,
+`positioning`. Pre-defined theorem-like
 environments: `theorem`, `lemma`, `corollary`, `proposition`, `definition`, `example`,
 `exercise`, `remark`, `notation`, and `proof`. Math: `equation*`, `align*`, `gather*`,
 `multline*`, `cases`, `aligned`, `pmatrix`/`bmatrix`/`vmatrix`. Lists: `enumerate` with
