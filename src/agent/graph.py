@@ -92,25 +92,30 @@ async def transcribe_page(
         {"role": "user", "content": user_content},
     ]
 
+    # Provider bursts (e.g. upstream spending caps) can outlast one pass over the
+    # model chain, so retry the whole chain a few times with backoff.
     last_error: Exception | None = None
-    for candidate in _model_chain(config, model):
-        try:
-            text = await acompletion(
-                model=candidate,
-                messages=messages,
-                temperature=config.temperature,
-                max_tokens=config.max_tokens,
-                api_key=config.api_key,
-                api_base=config.api_base,
-            )
-            return strip_code_fences(text)
-        except TruncatedResponse as exc:
-            last_error = exc
-            continue
-        except Exception as exc:  # noqa: BLE001 - provider outage: try the next model
-            last_error = exc
-            logger.warning("Transcription model %s failed: %s", candidate, exc)
-            continue
+    for round_idx in range(3):
+        for candidate in _model_chain(config, model):
+            try:
+                text = await acompletion(
+                    model=candidate,
+                    messages=messages,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    api_key=config.api_key,
+                    api_base=config.api_base,
+                )
+                return strip_code_fences(text)
+            except TruncatedResponse as exc:
+                last_error = exc
+                continue
+            except Exception as exc:  # noqa: BLE001 - provider outage: try the next model
+                last_error = exc
+                logger.warning("Transcription model %s failed: %s", candidate, exc)
+                continue
+        if round_idx < 2:
+            await asyncio.sleep(3 * (round_idx + 1))
     assert last_error is not None
     raise last_error
 
@@ -142,43 +147,46 @@ async def author_page(
         candidates.append(fallback_model)
 
     last_error: Exception | None = None
-    for candidate in candidates:
-        for attempt in range(2):
-            user = base_user
-            if attempt:
-                user += (
-                    "\n\nIMPORTANT: the previous attempt was cut off at the token limit. "
-                    "Produce a COMPLETE page. Keep it within about two to three typeset "
-                    "pages; drop optional elaboration, never content."
-                )
-            try:
-                text = await acompletion(
-                    model=candidate,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user},
-                    ],
-                    temperature=config.temperature,
-                    max_tokens=config.max_tokens,
-                    api_key=config.api_key,
-                    api_base=config.api_base,
-                )
-                body = strip_code_fences(text)
-                if not looks_complete(body):
-                    # Provider reported 'stop' but the body is visibly cut off.
-                    last_error = TruncatedResponse(
-                        f"Incomplete LaTeX body from {candidate} (unbalanced structure)"
+    for round_idx in range(3):
+        for candidate in candidates:
+            for attempt in range(2):
+                user = base_user
+                if attempt:
+                    user += (
+                        "\n\nIMPORTANT: the previous attempt was cut off at the token limit. "
+                        "Produce a COMPLETE page. Keep it within about two to three typeset "
+                        "pages; drop optional elaboration, never content."
                     )
+                try:
+                    text = await acompletion(
+                        model=candidate,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user},
+                        ],
+                        temperature=config.temperature,
+                        max_tokens=config.max_tokens,
+                        api_key=config.api_key,
+                        api_base=config.api_base,
+                    )
+                    body = strip_code_fences(text)
+                    if not looks_complete(body):
+                        # Provider reported 'stop' but the body is visibly cut off.
+                        last_error = TruncatedResponse(
+                            f"Incomplete LaTeX body from {candidate} (unbalanced structure)"
+                        )
+                        continue
+                    if candidate != primary:
+                        logger.warning("Authoring fell back to %s: %s", candidate, last_error)
+                    return body
+                except TruncatedResponse as exc:
+                    last_error = exc
                     continue
-                if candidate != primary:
-                    logger.warning("Authoring fell back to %s: %s", candidate, last_error)
-                return body
-            except TruncatedResponse as exc:
-                last_error = exc
-                continue
-            except Exception as exc:  # noqa: BLE001 - provider outage: try the fallback
-                last_error = exc
-                break
+                except Exception as exc:  # noqa: BLE001 - provider outage: try the fallback
+                    last_error = exc
+                    break
+        if round_idx < 2:
+            await asyncio.sleep(3 * (round_idx + 1))
     assert last_error is not None
     raise last_error
 
@@ -323,20 +331,23 @@ async def fix_latex(
     ]
 
     last_error: Exception | None = None
-    for candidate in _model_chain(config, config.role_models()["transcribe"]):
-        try:
-            text = await acompletion(
-                model=candidate,
-                messages=messages,
-                temperature=0.0,
-                max_tokens=config.max_tokens,
-                api_key=config.api_key,
-                api_base=config.api_base,
-            )
-            return strip_code_fences(text)
-        except (TruncatedResponse, Exception) as exc:  # noqa: BLE001
-            last_error = exc
-            continue
+    for round_idx in range(3):
+        for candidate in _model_chain(config, config.role_models()["transcribe"]):
+            try:
+                text = await acompletion(
+                    model=candidate,
+                    messages=messages,
+                    temperature=0.0,
+                    max_tokens=config.max_tokens,
+                    api_key=config.api_key,
+                    api_base=config.api_base,
+                )
+                return strip_code_fences(text)
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+                continue
+        if round_idx < 2:
+            await asyncio.sleep(3 * (round_idx + 1))
     assert last_error is not None
     raise last_error
 
